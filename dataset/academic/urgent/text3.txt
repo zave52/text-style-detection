@@ -1,0 +1,1 @@
+Critical vulnerabilities within the encryption protocol must be addressed by researchers without delay.

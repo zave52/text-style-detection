@@ -1,0 +1,1 @@
+Oh sure, let us just delete the entire database, what could go wrong?
