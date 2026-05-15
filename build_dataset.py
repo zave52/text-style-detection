@@ -19,11 +19,13 @@ for style_path in base_path.iterdir():
                     try:
                         text = file_path.read_text(encoding="utf-8").strip()
 
-                        data.append({
-                            "text": text,
-                            "style": style,
-                            "tone": tone
-                        })
+                        data.append(
+                            {
+                                "text": text,
+                                "style": style,
+                                "tone": tone
+                            }
+                        )
 
                     except Exception as e:
                         print(f"Error {file_path.name}: {e}")
