@@ -1,0 +1,1 @@
+Figure four illustrates the distribution of memory usage during the peak load test.

@@ -1,0 +1,1 @@
+Their innovative approach to parallel computing apparently involves simply running it twice as slow.

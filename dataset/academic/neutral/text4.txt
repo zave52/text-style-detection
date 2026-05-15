@@ -1,0 +1,1 @@
+JavaScript execution relies on a single-threaded, non-blocking event loop architecture.

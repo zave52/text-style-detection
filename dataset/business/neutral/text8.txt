@@ -1,0 +1,1 @@
+We have successfully deployed the latest Docker containers to the staging environment.

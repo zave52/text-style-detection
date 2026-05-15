@@ -1,0 +1,1 @@
+Initiate the emergency shutdown sequence immediately to avoid a hardware explosion.
