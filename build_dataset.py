@@ -1,9 +1,37 @@
 from pathlib import Path
 import pandas as pd
+import re
+import string
+from bs4 import BeautifulSoup
+from nltk.corpus import stopwords
+import nltk
+
+nltk.download("stopwords")
+
+STOP_WORDS = set(stopwords.words("english"))
 
 base_path = Path("dataset")
 
 data = []
+
+def preprocess_text(text):
+    text = BeautifulSoup(text, "html.parser").get_text()
+
+    text = text.lower()
+
+    text = re.sub(r"http\S+|www\S+", "", text)
+
+    text = re.sub(r"[^a-zA-Z\s]", " ", text)
+
+    text = re.sub(r"\s+", " ", text).strip()
+
+    words = [
+        word for word in text.split()
+        if word not in STOP_WORDS
+    ]
+
+    return " ".join(words)
+
 
 for style_path in base_path.iterdir():
 
@@ -17,11 +45,14 @@ for style_path in base_path.iterdir():
 
                 for file_path in tone_path.glob("*.txt"):
                     try:
-                        text = file_path.read_text(encoding="utf-8").strip()
+                        raw_text = file_path.read_text(encoding="utf-8").strip()
+
+                        clean_text = preprocess_text(raw_text)
 
                         data.append(
                             {
-                                "text": text,
+                                "text": raw_text,
+                                "clean_text": clean_text,
                                 "style": style,
                                 "tone": tone
                             }
@@ -32,10 +63,7 @@ for style_path in base_path.iterdir():
 
 df = pd.DataFrame(data)
 
-df = df.sample(
-    frac=1,
-    random_state=42
-)
+df = df.sample(frac=1,random_state=42).reset_index(drop=True)
 
 output_file = Path("dataset.csv")
 
