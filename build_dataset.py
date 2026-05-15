@@ -1,50 +1,36 @@
-import os
+from pathlib import Path
 import pandas as pd
 
-base_path = "dataset"
+base_path = Path("dataset")
 
 data = []
 
-for style in os.listdir(base_path):
+for style_path in base_path.iterdir():
 
-    style_path = os.path.join(base_path, style)
+    if style_path.is_dir():
 
-    if os.path.isdir(style_path):
+        style = style_path.name
 
-        for tone in os.listdir(style_path):
+        for tone_path in style_path.iterdir():
 
-            tone_path = os.path.join(style_path, tone)
+            if tone_path.is_dir():
 
-            if os.path.isdir(tone_path):
+                tone = tone_path.name
 
-                for file in os.listdir(tone_path):
+                for file_path in tone_path.glob("*.txt"):
+                    try:
+                        text = file_path.read_text(
+                            encoding="utf-8"
+                        ).strip()
 
-                    if file.endswith(".txt"):
+                        data.append({
+                            "text": text,
+                            "style": style,
+                            "tone": tone
+                        })
 
-                        file_path = os.path.join(
-                            tone_path,
-                            file
-                        )
-
-                        try:
-                            with open(
-                                file_path,
-                                "r",
-                                encoding="utf-8"
-                            ) as f:
-
-                                text = f.read().strip()
-
-                            data.append({
-                                "text": text,
-                                "style": style,
-                                "tone": tone
-                            })
-
-                        except Exception as e:
-                            print(
-                                f"Помилка {file}: {e}"
-                            )
+                    except Exception as e:
+                        print(f"Error {file_path.name}: {e}")
 
 df = pd.DataFrame(data)
 
@@ -53,12 +39,14 @@ df = df.sample(
     random_state=42
 )
 
+output_file = Path("dataset.csv")
+
 df.to_csv(
-    "dataset.csv",
+    output_file,
     index=False,
     encoding="utf-8"
 )
 
 print(
-    f"Готово! Записано {len(df)} рядків"
+    f"Done! Wrote {len(df)} rows to {output_file}"
 )
