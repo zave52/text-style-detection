@@ -1,10 +1,11 @@
-from pathlib import Path
-import pandas as pd
 import re
-import string
-from bs4 import BeautifulSoup
-from nltk.corpus import stopwords
+from pathlib import Path
+
+import spacy
+import pandas as pd
+
 import nltk
+from nltk.corpus import stopwords
 
 nltk.download("stopwords")
 
@@ -14,23 +15,30 @@ base_path = Path("dataset")
 
 data = []
 
+nlp = spacy.load("en_core_web_sm")
+
 def preprocess_text(text):
-    text = BeautifulSoup(text, "html.parser").get_text()
+    text = re.sub(r"http\S+|www\S+", "", text)
 
     text = text.lower()
 
-    text = re.sub(r"http\S+|www\S+", "", text)
+    doc = nlp(text)
 
-    text = re.sub(r"[^a-zA-Z\s]", " ", text)
+    clean_tokens = []
 
-    text = re.sub(r"\s+", " ", text).strip()
+    for token in doc:
+        if token.is_space:
+            continue
 
-    words = [
-        word for word in text.split()
-        if word not in STOP_WORDS
-    ]
+        if token.is_punct:
+            clean_tokens.append(token.text)
+        else:
+            lemma = token.lemma_.strip()
 
-    return " ".join(words)
+            if lemma and lemma not in STOP_WORDS:
+                clean_tokens.append(lemma)
+
+    return " ".join(clean_tokens)
 
 
 for style_path in base_path.iterdir():
@@ -48,6 +56,9 @@ for style_path in base_path.iterdir():
                         raw_text = file_path.read_text(encoding="utf-8").strip()
 
                         clean_text = preprocess_text(raw_text)
+                        
+                        if not clean_text.strip():
+                            continue
 
                         data.append(
                             {
