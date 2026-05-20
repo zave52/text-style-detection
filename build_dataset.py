@@ -1,15 +1,8 @@
 import re
 from pathlib import Path
 
-import spacy
 import pandas as pd
-
-import nltk
-from nltk.corpus import stopwords
-
-nltk.download("stopwords")
-
-STOP_WORDS = set(stopwords.words("english"))
+import spacy
 
 base_path = Path("dataset")
 
@@ -17,28 +10,33 @@ data = []
 
 nlp = spacy.load("en_core_web_sm")
 
+
 def preprocess_text(text):
     text = re.sub(r"http\S+|www\S+", "", text)
-
-    text = text.lower()
 
     doc = nlp(text)
 
     clean_tokens = []
 
     for token in doc:
+
         if token.is_space:
             continue
 
         if token.is_punct:
             clean_tokens.append(token.text)
+
         else:
             lemma = token.lemma_.strip()
 
-            if lemma and lemma not in STOP_WORDS:
-                clean_tokens.append(lemma)
+            if lemma:
+                clean_tokens.append(lemma.lower())
 
-    return " ".join(clean_tokens)
+    clean_text = " ".join(clean_tokens)
+
+    clean_text = re.sub(r"\s+", " ", clean_text).strip()
+
+    return clean_text
 
 
 for style_path in base_path.iterdir():
@@ -52,12 +50,13 @@ for style_path in base_path.iterdir():
                 tone = tone_path.name
 
                 for file_path in tone_path.glob("*.txt"):
+
                     try:
                         raw_text = file_path.read_text(encoding="utf-8").strip()
 
                         clean_text = preprocess_text(raw_text)
-                        
-                        if not clean_text.strip():
+
+                        if not clean_text:
                             continue
 
                         data.append(
@@ -74,7 +73,10 @@ for style_path in base_path.iterdir():
 
 df = pd.DataFrame(data)
 
-df = df.sample(frac=1,random_state=42).reset_index(drop=True)
+df = df.sample(
+    frac=1,
+    random_state=42
+).reset_index(drop=True)
 
 output_file = Path("dataset.csv")
 
