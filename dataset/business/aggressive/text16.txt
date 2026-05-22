@@ -1,0 +1,1 @@
+This is the third time this week the primary production server has crashed during peak business hours, and I demand someone be held personally accountable for this mess. Your engineering department needs to stop pointing fingers and actually fix the fundamental architectural flaws before we lose our remaining user base.

@@ -1,0 +1,1 @@
+Stop the automated deployment pipeline instantly; a massive, highly critical logical error was just detected in the latest backend code commit. If that corrupted update goes live to the public application, it will permanently erase thousands of active user profiles, so halt the server transfer right now!

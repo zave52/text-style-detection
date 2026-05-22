@@ -1,0 +1,1 @@
+We need to completely patch this newly discovered zero-day security vulnerability immediately before highly sensitive client financial data is entirely compromised by hackers. Drop absolutely everything you are currently doing and prioritize deploying the emergency hotfix to all live production servers within the next ten minutes!

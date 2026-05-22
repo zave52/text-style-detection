@@ -1,0 +1,1 @@
+Standard operating procedures require that all major technical incidents or unexpected network outages must be immediately logged in the central tracking database. A detailed incident report, including a comprehensive root-cause analysis, must be formally submitted to the relevant department head within twenty-four hours of the initial event.

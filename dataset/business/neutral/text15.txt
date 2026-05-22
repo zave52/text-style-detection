@@ -1,0 +1,1 @@
+Please review the attached PDF document for the complete, updated list of operational system requirements before installing the new software. The IT department strongly advises against attempting this manual upgrade on older hardware models, as it may result in significant performance degradation or localized data loss.
