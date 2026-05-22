@@ -1,0 +1,1 @@
+This academic paper aims to create an accessible and highly inviting entry point for undergraduates studying parallel computing architecture. We firmly believe that learning complex computational subjects should be a rewarding and highly engaging educational experience.

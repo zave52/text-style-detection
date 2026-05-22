@@ -1,0 +1,1 @@
+A critical, unexpected hardware failure in the university's primary data storage center is actively corrupting decades of entirely irreplaceable, highly sensitive genomic sequencing data. The primary IT infrastructure team must immediately execute the remote emergency backup protocols to frantically salvage whatever remaining digital files they possibly can.

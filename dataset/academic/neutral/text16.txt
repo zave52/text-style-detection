@@ -1,0 +1,1 @@
+The proposed sorting algorithm functions by dynamically partitioning the massive primary dataset into smaller, computationally manageable data clusters. Each distinct cluster is then processed asynchronously to significantly reduce the overall execution time of the software application.
