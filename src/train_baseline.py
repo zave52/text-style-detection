@@ -173,8 +173,3 @@ disp.plot()
 plt.title("TONE Confusion Matrix")
 
 plt.show()
-
-with open("tone_model.pkl", "wb") as f:
-    pickle.dump(best_tone_model, f)
-
-print("\nSaved tone_model.pkl")
