@@ -1,0 +1,1 @@
+To determine the standard deviation within the collected demographic surveys, the researchers utilized a specialized statistical software program. The final computational models were carefully adjusted to remove any significant statistical outliers from the data.

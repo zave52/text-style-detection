@@ -1,1 +1,1 @@
-We need to patch this security vulnerability immediately before client data is entirely compromised.
+Respond immediately.

@@ -1,1 +1,1 @@
-Message Passing Interface was utilized to manage the parallel processing tasks across the cluster.
+The methodology was evaluated correctly.

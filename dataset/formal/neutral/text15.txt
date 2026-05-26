@@ -1,0 +1,1 @@
+We are formally announcing the implementation of a core internal communications protocol, which is designed to streamline project management and reduce email volume. Effective immediately, all departmental teams will transition to the centralized digital workspace for their daily routine operations.

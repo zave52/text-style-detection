@@ -1,0 +1,1 @@
+Please ensure that you utilize the updated version of the software for all future deliverables. The previous version will be officially deprecated at the conclusion of this month, and support will be discontinued then.
