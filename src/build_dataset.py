@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import spacy
 
-base_path = Path("dataset")
+base_path = Path("../dataset")
 
 data = []
 
@@ -78,7 +78,7 @@ df = df.sample(
     random_state=42
 ).reset_index(drop=True)
 
-output_file = Path("dataset.csv")
+output_file = Path("../data/dataset.csv")
 
 df.to_csv(
     output_file,
