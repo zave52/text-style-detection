@@ -58,7 +58,7 @@ for style_path in base_path.iterdir():
 
                         if not clean_text:
                             continue
-                        
+
                         data.append(
                             {
                                 "text": raw_text,
