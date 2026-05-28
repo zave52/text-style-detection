@@ -131,6 +131,45 @@ The application will open automatically in your browser.
 
 ---
 
+## Docker
+
+The project is fully containerised and can be run with a single command using Docker Compose. The stack consists of three services:
+
+- **backend** — FastAPI app served by Uvicorn on port `8000`, built on `python:3.13-alpine3.23`
+- **frontend** — Streamlit app that communicates with the backend via the `API_URL` environment variable
+- **nginx** — reverse proxy that routes traffic between the frontend and backend, exposed on port `8000`
+
+All services communicate over a shared Docker network `style-tone-classification`.
+
+### Running with Docker Compose
+
+Make sure you have [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/) installed, then run:
+
+```bash
+docker compose up --build
+```
+
+The application will be available at [http://localhost:8000](http://localhost:8000).
+
+To stop all services:
+
+```bash
+docker compose down
+```
+
+### Services Overview
+
+| Service  | Image / Dockerfile       | Internal port | Exposed port |
+|----------|--------------------------|---------------|--------------|
+| backend  | `backend.Dockerfile`     | 8000          | —            |
+| frontend | `frontend.Dockerfile`    | —             | —            |
+| nginx    | `nginx:1.31-alpine3.23`  | 80            | 8000         |
+
+> **Note:** The backend image installs only the packages needed for inference (`fastapi`, `joblib`, `uvicorn`, `scikit-learn`) and uses a multi-step `apk` install to keep the final image small. Build dependencies (`g++`) are removed after installation.
+
+
+---
+
 ## Dependencies
 
 | Package | Version |
