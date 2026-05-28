@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    networks:
+      - style-tone-classification
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    environment:
+      - API_URL=http://backend:8000
+    networks:
+      - style-tone-classification
+
+
+  nginx:
+    image: nginx:1.31-alpine3.23
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - style-tone-classification
+
+networks:
+  style-tone-classification:

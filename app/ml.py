@@ -3,7 +3,7 @@ from pathlib import Path
 import joblib
 from fastapi import HTTPException
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 STYLE_MODEL_PATH = BASE_DIR / "saving" / "style_model.pkl"
 TONE_MODEL_PATH = BASE_DIR / "saving" / "tone_model.pkl"
 
