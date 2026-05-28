@@ -10,7 +10,7 @@ A machine learning project for detecting and classifying text styles using NLP t
 text-style-detection/
 ├── app/                        # Backend application
 │   ├── __pycache__/
-│   ├── main.py                 # Entry point (FastAPI / Flask app)
+│   ├── main.py                 # Entry point (FastAPI app)
 │   ├── ml.py                   # ML inference logic
 │   └── schemas.py              # Request/response schemas
 │
@@ -50,11 +50,12 @@ text-style-detection/
 │       └── urgent/
 │
 ├── frontend/
-│   └── app.py                  # Streamlit (or similar) frontend
+│   └── app.py                  # Streamlit frontend
 ├── nginx/
 │   └── nginx.conf              # Reverse proxy config
 ├── saving/                     # Persisted trained models
-│
+│   ├── style_model.pkl
+│   └── tone_model.pkl
 ├── scripts/
 │   └── build_dataset.py        # Dataset construction script
 ├── venv/                       # Virtual environment (not committed)
@@ -73,8 +74,12 @@ text-style-detection/
 ---
 
 ## Dataset
-The dataset/ directory contains labelled text samples organised by style (e.g. academic, business, formal, informal, literaly) and tone (e.g. aggressive, friendly, neutral, sarcastic, urgent).
-Each tone folder contains 40 text files with lengths ranging from 20 to 800 characters, increasing in steps of ~20 characters between adjacent files. This ensures the models are trained on a diverse range of text lengths and are not biased towards a particular input size.
+
+The `dataset/` directory contains labelled text samples organised by **style** (`academic`, `business`, `formal`, `informal`, `literaly`) and **tone** (`aggressive`, `friendly`, `neutral`, `sarcastic`, `urgent`).
+
+Each tone folder contains **40 text files** with lengths ranging from **20 to 800 characters**, increasing in steps of 20 characters between adjacent files. This ensures the models are trained on a diverse range of text lengths and are not biased towards a particular input size.
+
+---
 
 ## Getting Started
 
@@ -85,6 +90,8 @@ Each tone folder contains 40 text files with lengths ranging from 20 to 800 char
 
 ### Installation
 
+Clone the repository and navigate into the project folder:
+
 ```bash
 git clone https://github.com/zave52/text-style-detection.git
 cd text-style-detection
@@ -93,10 +100,13 @@ cd text-style-detection
 Create and activate a virtual environment:
 
 ```bash
+# Create virtual environment
 python -m venv venv
 
+# Activate on macOS / Linux
 source venv/bin/activate
 
+# Activate on Windows
 venv\Scripts\activate
 ```
 
@@ -112,9 +122,8 @@ Download the required spaCy language model:
 python -m spacy download en_core_web_sm
 ```
 
----
+### Running the Application
 
-## Running the Application
 To start the backend application execute:
 
 ```bash
@@ -159,11 +168,11 @@ docker compose down
 
 ### Services Overview
 
-| Service  | Image / Dockerfile       | Internal port | Exposed port |
-|----------|--------------------------|---------------|--------------|
-| backend  | `backend.Dockerfile`     | 8000          | —            |
-| frontend | `frontend.Dockerfile`    | —             | —            |
-| nginx    | `nginx:1.31-alpine3.23`  | 80            | 8000         |
+| Service  | Image / Dockerfile      | Internal port | Exposed port |
+|----------|-------------------------|---------------|--------------|
+| backend  | `backend.Dockerfile`    | 8000          | —            |
+| frontend | `frontend.Dockerfile`   | —             | —            |
+| nginx    | `nginx:1.31-alpine3.23` | 80            | 8000         |
 
 > **Note:** The backend image installs only the packages needed for inference (`fastapi`, `joblib`, `uvicorn`, `scikit-learn`) and uses a multi-step `apk` install to keep the final image small. Build dependencies (`g++`) are removed after installation.
 
@@ -185,12 +194,12 @@ Scans the entire `dataset/` directory tree and assembles all individual text fil
    - Whitespace-only tokens are dropped
 3. **Aggregation** — each sample is stored as a row with four columns:
 
-   | Column | Description |
-   |---|---|
-   | `text` | Original raw text |
-   | `clean_text` | Preprocessed / lemmatised text |
-   | `style` | Style label (e.g. `academic`, `formal`) |
-   | `tone` | Tone label (e.g. `friendly`, `urgent`) |
+   | Column       | Description                          |
+   |--------------|--------------------------------------|
+   | `text`       | Original raw text                    |
+   | `clean_text` | Preprocessed / lemmatised text       |
+   | `style`      | Style label (e.g. `academic`, `formal`) |
+   | `tone`       | Tone label (e.g. `friendly`, `urgent`)  |
 
 4. **Shuffling** — the resulting DataFrame is randomly shuffled with `random_state=42` for reproducibility.
 5. **Export** — saved to `data/dataset.csv` in UTF-8 encoding.
@@ -207,18 +216,16 @@ python build_dataset.py
 > python -m spacy download en_core_web_sm
 > ```
 
-
 ---
-
 
 ## Dependencies
 
-| Package | Version |
-|---|---|
-| pandas | 3.0.3 |
-| spacy | 3.8.13 |
-| seaborn | 0.13.2 |
-| scikit-learn | ≥ 1.5.0 |
+| Package      | Version  |
+|--------------|----------|
+| pandas       | 3.0.3    |
+| spacy        | 3.8.13   |
+| seaborn      | 0.13.2   |
+| scikit-learn | ≥ 1.5.0  |
 
 ---
 
@@ -256,77 +263,79 @@ Experiments with text embedding approaches to improve feature representations fo
 
 ## Results
 
-# Model Comparison (MultiOutputClassifier wrapping SVM (RBF))
+### Dataset Distributions
 
-============================================================
-SVM — style (['academic' 'business' 'formal' 'informal' 'literaly'])
-============================================================
-              precision    recall  f1-score   support
 
-    academic       0.95      0.88      0.91        40
-    business       0.78      0.80      0.79        40
-      formal       0.82      0.82      0.82        40
-    informal       0.83      0.95      0.88        40
-    literaly       1.00      0.90      0.95        40
+### Model Comparison
 
-    accuracy                           0.87       200
-   macro avg       0.88      0.87      0.87       200
-weighted avg       0.88      0.87      0.87       200
+Both classifiers are wrapped in a `MultiOutputClassifier` to predict **style** and **tone** simultaneously.
 
-============================================================
-SVM — tone (['aggressive' 'friendly' 'neutral' 'sarcastic' 'urgent'])
-============================================================
-              precision    recall  f1-score   support
+| Model | Target | Accuracy | CV F1-macro | CV std |
+|-------|--------|----------|-------------|--------|
+| SVM   | style  | 0.870    | 0.8534      | 0.0215 |
+| SVM   | tone   | 0.890    | 0.8721      | 0.0156 |
+| RF    | style  | 0.855    | 0.8365      | 0.0187 |
+| RF    | tone   | 0.880    | 0.8461      | 0.0131 |
 
-  aggressive       0.83      0.94      0.88        36
-    friendly       0.93      0.91      0.92        44
-     neutral       0.85      0.82      0.84        40
-   sarcastic       0.90      0.83      0.86        42
-      urgent       0.95      0.95      0.95        38
-...
-    accuracy                           0.89       200
-   macro avg       0.89      0.89      0.89       200
-weighted avg       0.89      0.89      0.89       200
 
-# MultiOutputClassifier wrapping Random Forest
+SVM outperforms Random Forest on both tasks. Tone classification consistently achieves higher scores than style classification across all metrics.
 
-============================================================
-RF — style (['academic' 'business' 'formal' 'informal' 'literaly'])
-============================================================
-              precision    recall  f1-score   support
+### Classification Reports
 
-    academic       0.88      0.93      0.90        40
-    business       0.78      0.80      0.79        40
-      formal       0.85      0.72      0.78        40
-    informal       0.84      0.90      0.87        40
-    literaly       0.93      0.93      0.93        40
+#### SVM — Style (accuracy 0.87)
 
-    accuracy                           0.85       200
-   macro avg       0.86      0.86      0.85       200
-weighted avg       0.86      0.85      0.85       200
+| Class    | Precision | Recall | F1-score |
+|----------|-----------|--------|----------|
+| academic | 0.95      | 0.88   | 0.91     |
+| business | 0.78      | 0.80   | 0.79     |
+| formal   | 0.82      | 0.82   | 0.82     |
+| informal | 0.83      | 0.95   | 0.88     |
+| literaly | 1.00      | 0.90   | 0.95     |
+| **macro avg** | **0.88** | **0.87** | **0.87** |
 
-============================================================
-RF — tone (['aggressive' 'friendly' 'neutral' 'sarcastic' 'urgent'])
-============================================================
-              precision    recall  f1-score   support
+#### SVM — Tone (accuracy 0.89)
 
-  aggressive       0.85      0.92      0.88        36
-    friendly       0.93      0.89      0.91        44
-     neutral       0.82      0.82      0.82        40
-   sarcastic       0.86      0.88      0.87        42
-      urgent       0.94      0.89      0.92        38
-...
-    accuracy                           0.88       200
-   macro avg       0.88      0.88      0.88       200
-weighted avg       0.88      0.88      0.88       200
+| Class      | Precision | Recall | F1-score |
+|------------|-----------|--------|----------|
+| aggressive | 0.83      | 0.94   | 0.88     |
+| friendly   | 0.93      | 0.91   | 0.92     |
+| neutral    | 0.85      | 0.82   | 0.84     |
+| sarcastic  | 0.90      | 0.83   | 0.86     |
+| urgent     | 0.95      | 0.95   | 0.95     |
+| **macro avg** | **0.89** | **0.89** | **0.89** |
 
-## Summary Table
 
-Model Target  Accuracy  CV F1-macro  CV std
-  SVM  style     0.870       0.8534  0.0215
-  SVM   tone     0.890       0.8721  0.0156
-   RF  style     0.855       0.8365  0.0187
-   RF   tone     0.880       0.8461  0.0131
+#### RF — Style (accuracy 0.85)
+
+| Class    | Precision | Recall | F1-score |
+|----------|-----------|--------|----------|
+| academic | 0.88      | 0.93   | 0.90     |
+| business | 0.78      | 0.80   | 0.79     |
+| formal   | 0.85      | 0.72   | 0.78     |
+| informal | 0.84      | 0.90   | 0.87     |
+| literaly | 0.93      | 0.93   | 0.93     |
+| **macro avg** | **0.86** | **0.86** | **0.85** |
+
+#### RF — Tone (accuracy 0.88)
+
+| Class      | Precision | Recall | F1-score |
+|------------|-----------|--------|----------|
+| aggressive | 0.85      | 0.92   | 0.88     |
+| friendly   | 0.93      | 0.89   | 0.91     |
+| neutral    | 0.82      | 0.82   | 0.82     |
+| sarcastic  | 0.86      | 0.88   | 0.87     |
+| urgent     | 0.94      | 0.89   | 0.92     |
+| **macro avg** | **0.88** | **0.88** | **0.88** |
+
+
+---
+
+## Developers
+
+This project was developed by:
+
+- **Pavlo Molytovnyk** — [github.com/PavloMolytovnyk](https://github.com/PavloMolytovnyk)
+- **Zahar Savchyn** — [github.com/zave52](https://github.com/zave52)
 
 ---
 
@@ -335,12 +344,6 @@ Model Target  Accuracy  CV F1-macro  CV std
 Contributions, issues, and feature requests are welcome! Feel free to open an [issue](https://github.com/zave52/text-style-detection/issues) or submit a pull request.
 
 ---
-
-## Developers
-The ML was develop by Pavlo Molytovnyk and Zahar Savchyn
-
---Pavlo Molytovnyk - https://github.com/PavloMolytovnyk
---Zahar Savchyn - https://github.com/zave52
 
 ## License
 
