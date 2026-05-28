@@ -2,14 +2,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.ml import (
+from ml import (
     load_models,
     clear_models,
     predict_style,
     predict_tone,
     predict_both
 )
-from app.schemas import (
+from schemas import (
     TextRequest,
     StyleResponse,
     ToneResponse,
