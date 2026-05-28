@@ -167,8 +167,49 @@ docker compose down
 
 > **Note:** The backend image installs only the packages needed for inference (`fastapi`, `joblib`, `uvicorn`, `scikit-learn`) and uses a multi-step `apk` install to keep the final image small. Build dependencies (`g++`) are removed after installation.
 
+---
+
+## Scripts
+
+### `scripts/build_dataset.py`
+
+Scans the entire `dataset/` directory tree and assembles all individual text files into a single `data/dataset.csv` file ready for model training.
+
+**How it works:**
+
+1. **Traversal** — iterates over every `style → tone → *.txt` path in `dataset/`, extracting the `style` and `tone` labels from the folder names.
+2. **Preprocessing** — for each file the raw text is cleaned using spaCy (`en_core_web_sm`):
+   - URLs are stripped with a regex
+   - Tokens are lemmatised and lowercased
+   - Punctuation is preserved as-is
+   - Whitespace-only tokens are dropped
+3. **Aggregation** — each sample is stored as a row with four columns:
+
+   | Column | Description |
+   |---|---|
+   | `text` | Original raw text |
+   | `clean_text` | Preprocessed / lemmatised text |
+   | `style` | Style label (e.g. `academic`, `formal`) |
+   | `tone` | Tone label (e.g. `friendly`, `urgent`) |
+
+4. **Shuffling** — the resulting DataFrame is randomly shuffled with `random_state=42` for reproducibility.
+5. **Export** — saved to `data/dataset.csv` in UTF-8 encoding.
+
+**Usage:**
+
+```bash
+cd scripts
+python build_dataset.py
+```
+
+> **Note:** Requires the spaCy model `en_core_web_sm` to be installed:
+> ```bash
+> python -m spacy download en_core_web_sm
+> ```
+
 
 ---
+
 
 ## Dependencies
 
