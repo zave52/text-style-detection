@@ -5,17 +5,13 @@ import pandas as pd
 import spacy
 
 base_path = Path("../dataset")
-
 data = []
-
 nlp = spacy.load("en_core_web_sm")
 
 
 def preprocess_text(text):
     text = re.sub(r"http\S+|www\S+", "", text)
-
     doc = nlp(text)
-
     clean_tokens = []
 
     for token in doc:
@@ -33,9 +29,7 @@ def preprocess_text(text):
                 clean_tokens.append(lemma.lower())
 
     clean_text = " ".join(clean_tokens)
-
     clean_text = re.sub(r"\s+", " ", clean_text).strip()
-
     return clean_text
 
 
@@ -53,7 +47,6 @@ for style_path in base_path.iterdir():
 
                     try:
                         raw_text = file_path.read_text(encoding="utf-8").strip()
-
                         clean_text = preprocess_text(raw_text)
 
                         if not clean_text:
