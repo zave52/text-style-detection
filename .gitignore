@@ -280,4 +280,10 @@ pyrightconfig.json
 .history
 .ionide
 
+# Models and Pipelines
+*.pkl
+*.joblib
+*.h5
+*.keras
+
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm+all,visualstudiocode
