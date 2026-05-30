@@ -1,350 +1,279 @@
-# Text Style Detection
+# 🎭 Text Style & Tone Detection
 
-A machine learning project for detecting and classifying text styles using NLP techniques. The pipeline covers exploratory data analysis, feature engineering with spaCy, and supervised classification with scikit-learn.
+A machine learning system for classifying the **writing style** and **emotional tone** of English text. The project includes an end-to-end ML pipeline (EDA → modeling → evaluation), a FastAPI inference backend, and a Streamlit web interface — all containerized with Docker Compose.
 
----
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Project Structure](#project-structure)
+- [Dataset](#dataset)
+- [Models](#models)
+  - [Approach 1 — TF-IDF + LinearSVC](#approach-1--tf-idf--linearsvc)
+  - [Approach 2 — spaCy Embeddings + MultiOutputClassifier](#approach-2--spacy-embeddings--multioutputclassifier)
+- [Results](#results)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Local Development](#local-development)
+  - [Docker Deployment](#docker-deployment)
+- [API Reference](#api-reference)
+- [Tech Stack](#tech-stack)
+- [License](#license)
+
+## Overview
+
+The goal of this project is to automatically detect two independent properties of a given text:
+
+| Property | Classes |
+|----------|---------|
+| **Style** | `academic`, `business`, `formal`, `informal`, `literary` |
+| **Tone** | `aggressive`, `friendly`, `neutral`, `sarcastic`, `urgent` |
+
+Two modeling approaches are explored and compared across the analysis notebooks.
+
+## Key Features
+
+- **Exploratory Data Analysis** — label distributions, text length statistics, and cross-tabulations
+- **Two modeling approaches** — TF-IDF + LinearSVC and spaCy embeddings + SVM/Random Forest
+- **Hyperparameter tuning** — `GridSearchCV` with 5-fold stratified cross-validation
+- **REST API** — FastAPI backend with `/predict`, `/predict/style`, and `/predict/tone` endpoints
+- **Web UI** — Streamlit-based interactive frontend
+- **Docker Compose** — one-command deployment with Nginx reverse proxy
 
 ## Project Structure
 
 ```
 text-style-detection/
-├── app/                        # Backend application
-│   ├── __pycache__/
-│   ├── main.py                 # Entry point (FastAPI app)
-│   ├── ml.py                   # ML inference logic
-│   └── schemas.py              # Request/response schemas
-│
-├── data/
-│   └── dataset.csv             # Raw dataset
-│
-├── dataset/                    # Labelled text samples by style and tone
-│   ├── academic/
-│   │   ├── aggressive/
-│   │   ├── friendly/
-│   │   ├── neutral/
-│   │   ├── sarcastic/
-│   │   └── urgent/
-│   ├── business/
-│   │   ├── aggressive/
-│   │   ├── friendly/
-│   │   ├── neutral/
-│   │   ├── sarcastic/
-│   │   └── urgent/
-│   ├── formal/
-│   │   ├── aggressive/
-│   │   ├── friendly/
-│   │   ├── neutral/
-│   │   ├── sarcastic/
-│   │   └── urgent/
-│   ├── informal/
-│   │   ├── aggressive/
-│   │   ├── friendly/
-│   │   ├── neutral/
-│   │   ├── sarcastic/
-│   │   └── urgent/
-│   └── literaly/
-│       ├── aggressive/
-│       ├── friendly/
-│       ├── neutral/
-│       ├── sarcastic/
-│       └── urgent/
-│
+├── app/                          # FastAPI backend
+│   ├── main.py                   #   Application entrypoint & route definitions
+│   ├── ml.py                     #   Model loading, preprocessing & inference
+│   └── schemas.py                #   Pydantic request/response schemas
 ├── frontend/
-│   └── app.py                  # Streamlit frontend
-├── nginx/
-│   └── nginx.conf              # Reverse proxy config
-├── saving/                     # Persisted trained models
-│   ├── style_model.pkl
-│   └── tone_model.pkl
+│   └── app.py                    # Streamlit web interface
 ├── scripts/
-│   └── build_dataset.py        # Dataset construction script
-├── venv/                       # Virtual environment (not committed)
-├── .dockerignore
-├── .gitignore
-├── backend.Dockerfile
-├── docker-compose.yml
-├── eda_01.ipynb                # Exploratory Data Analysis
-├── embedding_models_03.ipynb   # Embedding model experiments
-├── frontend.Dockerfile
-├── modelling_02.ipynb          # Model training and evaluation
-├── README.md
-└── requirements.txt
+│   └── build_dataset.py          # Script to build dataset.csv from raw text files
+├── dataset/                      # Raw text corpus (style/tone/sample.txt)
+│   ├── academic/
+│   ├── business/
+│   ├── formal/
+│   ├── informal/
+│   └── literary/
+├── data/                         # Processed data & saved pipelines
+│   └── dataset.csv               #   Compiled dataset (1 000 samples)
+├── saving/                       # Trained TF-IDF + LinearSVC models
+│   ├── style_model.joblib        # (not commited to git)
+│   └── tone_model.joblib         # (not commited to git)
+├── nginx/
+│   └── nginx.conf                # Nginx reverse proxy configuration
+├── eda_01.ipynb                  # Notebook 01 — Exploratory Data Analysis
+├── modelling_02.ipynb            # Notebook 02 — TF-IDF + LinearSVC modeling
+├── embedding_models_03.ipynb     # Notebook 03 — spaCy embeddings + MultiOutput
+├── requirements.txt              # Python dependencies
+├── docker-compose.yml            # Docker Compose orchestration
+├── backend.Dockerfile            # Backend container image
+└── frontend.Dockerfile           # Frontend container image
 ```
-
----
 
 ## Dataset
 
-The `dataset/` directory contains labelled text samples organised by **style** (`academic`, `business`, `formal`, `informal`, `literaly`) and **tone** (`aggressive`, `friendly`, `neutral`, `sarcastic`, `urgent`).
+The dataset contains **1 000 English text samples**, balanced across all classes:
 
-Each tone folder contains **40 text files** with lengths ranging from **20 to 800 characters**, increasing in steps of 20 characters between adjacent files. This ensures the models are trained on a diverse range of text lengths and are not biased towards a particular input size.
+- **5 styles × 5 tones = 25 class combinations**, each with 40 samples
+- **200 samples per style**, **200 samples per tone**
+- Raw texts are stored in `dataset/{style}/{tone}/*.txt`
+- The compiled CSV (`data/dataset.csv`) includes both the original `text` and the preprocessed `clean_text`
 
----
+### Text Preprocessing
+
+The preprocessing pipeline (shared between `scripts/build_dataset.py` and `app/ml.py`):
+
+1. Remove URLs (`http://…`, `www.…`)
+2. Tokenize and lemmatize using **spaCy** (`en_core_web_sm`)
+3. Preserve punctuation tokens; lowercase lemmatized words
+4. Collapse multiple spaces
+
+## Models
+
+### Approach 1 — TF-IDF + LinearSVC
+
+> 📓 Notebook: [`modelling_02.ipynb`](modelling_02.ipynb)
+
+Two independent classifiers (one for style, one for tone) trained on `clean_text`:
+
+- **Feature extraction:** `TfidfVectorizer`
+- **Classifier:** `LinearSVC`
+- **Tuning:** `GridSearchCV` (5-fold CV, `f1_weighted` scoring)
+- **Search space:**
+  - `max_features`: {3 000, 5 000}
+  - `ngram_range`: {(1,1), (1,2), (1,3)}
+  - `C`: {0.1, 1, 10}
+
+### Approach 2 — spaCy Embeddings + MultiOutputClassifier
+
+> 📓 Notebook: [`embedding_models_03.ipynb`](embedding_models_03.ipynb)
+
+A single `MultiOutputClassifier` predicting both targets simultaneously:
+
+- **Feature extraction:** 300-dimensional word vectors via **spaCy** (`en_core_web_md`), averaged per document
+- **Classifiers compared:** `SVC` (RBF kernel, C=10) and `RandomForestClassifier` (300 estimators)
+- **Evaluation:** 5-fold stratified CV with F1-macro scoring
+
+## Results
+
+### Approach 1 — TF-IDF + LinearSVC (Test Set)
+
+| Target | Accuracy | F1 (weighted) | CV F1 (weighted) | Best Params |
+|--------|----------|---------------|-------------------|-------------|
+| **Style** | 0.89 | 0.886 | 0.918 | `C=1`, `max_features=5000`, `ngram_range=(1,3)` |
+| **Tone** | 0.94 | 0.935 | 0.950 | `C=1`, `max_features=5000`, `ngram_range=(1,2)` |
+
+<details>
+<summary>Per-class metrics — Style (TF-IDF + LinearSVC)</summary>
+
+| Class | Precision | Recall | F1-score | Support |
+|-------|-----------|--------|----------|---------|
+| academic | 0.97 | 0.93 | 0.95 | 40 |
+| business | 0.71 | 0.85 | 0.77 | 40 |
+| formal | 0.88 | 0.72 | 0.79 | 40 |
+| informal | 0.90 | 0.95 | 0.93 | 40 |
+| literary | 1.00 | 0.97 | 0.99 | 40 |
+
+</details>
+
+<details>
+<summary>Per-class metrics — Tone (TF-IDF + LinearSVC)</summary>
+
+| Class | Precision | Recall | F1-score | Support |
+|-------|-----------|--------|----------|---------|
+| aggressive | 1.00 | 0.90 | 0.95 | 40 |
+| friendly | 0.93 | 0.93 | 0.93 | 40 |
+| neutral | 0.91 | 0.97 | 0.94 | 40 |
+| sarcastic | 0.88 | 0.93 | 0.90 | 40 |
+| urgent | 0.97 | 0.95 | 0.96 | 40 |
+
+</details>
+
+### Approach 2 — spaCy Embeddings (5-Fold CV)
+
+| Model | Target | Test Accuracy | CV F1-macro |
+|-------|--------|---------------|-------------|
+| **SVM** | Style | 0.870 | 0.853 ± 0.022 |
+| **SVM** | Tone | 0.890 | 0.872 ± 0.016 |
+| RF | Style | 0.855 | 0.837 ± 0.019 |
+| RF | Tone | 0.880 | 0.846 ± 0.013 |
+
+> **Conclusion:** TF-IDF + LinearSVC outperforms the embedding-based approach on this dataset. The TF-IDF models are used for the deployed inference API.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.9+
-- pip
+- Python ≥ 3.10
+- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/) (for containerized deployment)
 
-### Installation
+### Local Development
 
-Clone the repository and navigate into the project folder:
+1. **Clone the repository:**
 
-```bash
-git clone https://github.com/zave52/text-style-detection.git
-cd text-style-detection
-```
+   ```bash
+   git clone https://github.com/zave52/text-style-detection.git
+   cd text-style-detection
+   ```
 
-Create and activate a virtual environment:
+2. **Create a virtual environment and install dependencies:**
 
-```bash
-# Create virtual environment
-python -m venv venv
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python -m spacy download en_core_web_sm
+   ```
 
-# Activate on macOS / Linux
-source venv/bin/activate
+3. **(Optional) Rebuild the dataset from raw text files:**
 
-# Activate on Windows
-venv\Scripts\activate
-```
+   ```bash
+   cd scripts
+   python build_dataset.py
+   cd ..
+   ```
 
-Install the dependencies:
+4. **(Optional) Retrain models — run the Jupyter notebooks in order:**
 
-```bash
-pip install -r requirements.txt
-```
+   ```bash
+   jupyter notebook
+   ```
 
-Download the required spaCy language model:
+   Execute the notebooks sequentially: `eda_01.ipynb` → `modelling_02.ipynb` → `embedding_models_03.ipynb`
 
-```bash
-python -m spacy download en_core_web_sm
-```
+### Docker Deployment
 
-### Running the Application
-
-To start the backend application execute:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-In a separate terminal, start the frontend by executing:
-
-```bash
-streamlit run frontend/app.py
-```
-
-The application will open automatically in your browser.
-
----
-
-## Docker
-
-The project is fully containerised and can be run with a single command using Docker Compose. The stack consists of three services:
-
-- **backend** — FastAPI app served by Uvicorn on port `8000`, built on `python:3.13-alpine3.23`
-- **frontend** — Streamlit app that communicates with the backend via the `API_URL` environment variable
-- **nginx** — reverse proxy that routes traffic between the frontend and backend, exposed on port `8000`
-
-All services communicate over a shared Docker network `style-tone-classification`.
-
-### Running with Docker Compose
-
-Make sure you have [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/) installed, then run:
+Launch the entire stack (backend + frontend + Nginx) with a single command:
 
 ```bash
 docker compose up --build
 ```
 
-The application will be available at [http://localhost:8000](http://localhost:8000).
+The application will be available at **http://localhost:8000**:
 
-To stop all services:
+| Path | Service |
+|------|---------|
+| `/` | Streamlit frontend |
+| `/predict` | FastAPI prediction endpoint |
+| `/docs` | Interactive API documentation (Swagger UI) |
 
-```bash
-docker compose down
+## API Reference
+
+### `POST /predict`
+
+Predict both style and tone.
+
+**Request:**
+
+```json
+{
+  "text": "Your text here"
+}
 ```
 
-### Services Overview
+**Response:**
 
-| Service  | Image / Dockerfile      | Internal port | Exposed port |
-|----------|-------------------------|---------------|--------------|
-| backend  | `backend.Dockerfile`    | 8000          | —            |
-| frontend | `frontend.Dockerfile`   | —             | —            |
-| nginx    | `nginx:1.31-alpine3.23` | 80            | 8000         |
-
-> **Note:** The backend image installs only the packages needed for inference (`fastapi`, `joblib`, `uvicorn`, `scikit-learn`) and uses a multi-step `apk` install to keep the final image small. Build dependencies (`g++`) are removed after installation.
-
----
-
-## Scripts
-
-### `scripts/build_dataset.py`
-
-Scans the entire `dataset/` directory tree and assembles all individual text files into a single `data/dataset.csv` file ready for model training.
-
-**How it works:**
-
-1. **Traversal** — iterates over every `style → tone → *.txt` path in `dataset/`, extracting the `style` and `tone` labels from the folder names.
-2. **Preprocessing** — for each file the raw text is cleaned using spaCy (`en_core_web_sm`):
-   - URLs are stripped with a regex
-   - Tokens are lemmatised and lowercased
-   - Punctuation is preserved as-is
-   - Whitespace-only tokens are dropped
-3. **Aggregation** — each sample is stored as a row with four columns:
-
-   | Column       | Description                          |
-   |--------------|--------------------------------------|
-   | `text`       | Original raw text                    |
-   | `clean_text` | Preprocessed / lemmatised text       |
-   | `style`      | Style label (e.g. `academic`, `formal`) |
-   | `tone`       | Tone label (e.g. `friendly`, `urgent`)  |
-
-4. **Shuffling** — the resulting DataFrame is randomly shuffled with `random_state=42` for reproducibility.
-5. **Export** — saved to `data/dataset.csv` in UTF-8 encoding.
-
-**Usage:**
-
-```bash
-cd scripts
-python build_dataset.py
+```json
+{
+  "style": "academic",
+  "tone": "neutral"
+}
 ```
 
-> **Note:** Requires the spaCy model `en_core_web_sm` to be installed:
-> ```bash
-> python -m spacy download en_core_web_sm
-> ```
+### `POST /predict/style`
 
----
+Predict style only.
 
-## Dependencies
+**Response:**
 
-| Package      | Version  |
-|--------------|----------|
-| pandas       | 3.0.3    |
-| spacy        | 3.8.13   |
-| seaborn      | 0.13.2   |
-| scikit-learn | ≥ 1.5.0  |
+```json
+{
+  "style": "formal"
+}
+```
 
----
+### `POST /predict/tone`
 
-## Notebooks
+Predict tone only.
 
-### `eda_01.ipynb` — Exploratory Data Analysis
-Investigates the dataset structure, class distribution, text length statistics, and linguistic features. Includes visualizations built with seaborn to understand the characteristics of each text style and tone.
+**Response:**
 
-### `modelling_02.ipynb` — Modelling
-Builds and evaluates classification models for text style and tone detection. Uses spaCy for text preprocessing and feature extraction, and scikit-learn for training and evaluating classifiers. Saves the final models as `style_model.pkl` and `tone_model.pkl`.
-
-### `embedding_models_03.ipynb` — Embedding Models
-Experiments with text embedding approaches to improve feature representations for style and tone classification.
-
----
-
-## Methodology
-
-1. **Data loading & inspection** — load raw text samples with their style labels.
-2. **EDA** — analyse class balance, token/sentence distributions, and linguistic patterns.
-3. **Feature engineering** — extract NLP features using spaCy (POS tags, lemmas, named entities, syntactic structures).
-4. **Modelling** — train and cross-validate scikit-learn classifiers; compare performance with accuracy, precision, recall, and F1-score.
-5. **Evaluation** — interpret results with confusion matrices and feature importance analysis.
-
----
+```json
+{
+  "tone": "sarcastic"
+}
+```
 
 ## Tech Stack
 
-- **spaCy** — linguistic feature extraction and text preprocessing
-- **scikit-learn** — machine learning pipeline, vectorisation, and classification
-- **pandas** — data manipulation and analysis
-- **seaborn** — statistical data visualisation
-
----
-
-## Results
-
-### Dataset Distributions
-
-
-### Model Comparison
-
-Both classifiers are wrapped in a `MultiOutputClassifier` to predict **style** and **tone** simultaneously.
-
-| Model | Target | Accuracy | CV F1-macro | CV std |
-|-------|--------|----------|-------------|--------|
-| SVM   | style  | 0.870    | 0.8534      | 0.0215 |
-| SVM   | tone   | 0.890    | 0.8721      | 0.0156 |
-| RF    | style  | 0.855    | 0.8365      | 0.0187 |
-| RF    | tone   | 0.880    | 0.8461      | 0.0131 |
-
-
-SVM outperforms Random Forest on both tasks. Tone classification consistently achieves higher scores than style classification across all metrics.
-
-### Classification Reports
-
-#### SVM — Style (accuracy 0.87)
-
-| Class    | Precision | Recall | F1-score |
-|----------|-----------|--------|----------|
-| academic | 0.95      | 0.88   | 0.91     |
-| business | 0.78      | 0.80   | 0.79     |
-| formal   | 0.82      | 0.82   | 0.82     |
-| informal | 0.83      | 0.95   | 0.88     |
-| literaly | 1.00      | 0.90   | 0.95     |
-| **macro avg** | **0.88** | **0.87** | **0.87** |
-
-#### SVM — Tone (accuracy 0.89)
-
-| Class      | Precision | Recall | F1-score |
-|------------|-----------|--------|----------|
-| aggressive | 0.83      | 0.94   | 0.88     |
-| friendly   | 0.93      | 0.91   | 0.92     |
-| neutral    | 0.85      | 0.82   | 0.84     |
-| sarcastic  | 0.90      | 0.83   | 0.86     |
-| urgent     | 0.95      | 0.95   | 0.95     |
-| **macro avg** | **0.89** | **0.89** | **0.89** |
-
-
-#### RF — Style (accuracy 0.85)
-
-| Class    | Precision | Recall | F1-score |
-|----------|-----------|--------|----------|
-| academic | 0.88      | 0.93   | 0.90     |
-| business | 0.78      | 0.80   | 0.79     |
-| formal   | 0.85      | 0.72   | 0.78     |
-| informal | 0.84      | 0.90   | 0.87     |
-| literaly | 0.93      | 0.93   | 0.93     |
-| **macro avg** | **0.86** | **0.86** | **0.85** |
-
-#### RF — Tone (accuracy 0.88)
-
-| Class      | Precision | Recall | F1-score |
-|------------|-----------|--------|----------|
-| aggressive | 0.85      | 0.92   | 0.88     |
-| friendly   | 0.93      | 0.89   | 0.91     |
-| neutral    | 0.82      | 0.82   | 0.82     |
-| sarcastic  | 0.86      | 0.88   | 0.87     |
-| urgent     | 0.94      | 0.89   | 0.92     |
-| **macro avg** | **0.88** | **0.88** | **0.88** |
-
-
----
-
-## Developers
-
-This project was developed by:
-
-- **Pavlo Molytovnyk** — [github.com/PavloMolytovnyk](https://github.com/PavloMolytovnyk)
-- **Zahar Savchyn** — [github.com/zave52](https://github.com/zave52)
-
----
-
-## Contributing
-
-Contributions, issues, and feature requests are welcome! Feel free to open an [issue](https://github.com/zave52/text-style-detection/issues) or submit a pull request.
-
----
-
-## License
-
-This project is open source. Please check the repository for licence details.
+| Component | Technology |
+|-----------|------------|
+| ML / NLP | scikit-learn, spaCy, pandas, seaborn, matplotlib |
+| Backend API | FastAPI, Uvicorn |
+| Frontend | Streamlit |
+| Containerization | Docker, Docker Compose, Nginx |
+| Serialization | joblib |
