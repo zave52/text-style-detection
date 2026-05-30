@@ -10,17 +10,13 @@ STYLE_MODEL_PATH = BASE_DIR / "saving" / "style_model.pkl"
 TONE_MODEL_PATH = BASE_DIR / "saving" / "tone_model.pkl"
 
 models = {}
-
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    import spacy.cli
-
-    spacy.cli.download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+nlp = None
 
 
 def preprocess_text(text: str) -> str:
+    if nlp is None:
+        raise HTTPException(status_code=503, detail="NLP model is not loaded.")
+
     text = re.sub(r"http\S+|www\S+", "", text)
     doc = nlp(text)
     clean_tokens = []
@@ -41,7 +37,16 @@ def preprocess_text(text: str) -> str:
 
 
 def load_models():
+    global nlp
     try:
+        print("Loading spaCy model...")
+        try:
+            nlp = spacy.load("en_core_web_sm")
+        except OSError:
+            spacy.cli.download("en_core_web_sm")
+            nlp = spacy.load("en_core_web_sm")
+        print("spaCy model loaded successfully.")
+
         if STYLE_MODEL_PATH.exists():
             models["style"] = joblib.load(STYLE_MODEL_PATH)
             print("Style model loaded successfully.")
