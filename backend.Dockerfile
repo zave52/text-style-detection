@@ -5,7 +5,7 @@ WORKDIR /app
 RUN apk add --no-cache libgomp libstdc++ \
 	&& apk add --no-cache --virtual build-deps \
 	g++ \
-    && pip install --no-cache-dir fastapi joblib uvicorn scikit-learn \
+    && pip install --no-cache-dir fastapi joblib uvicorn scikit-learn spacy \
     && apk del build-deps
 
 COPY app .
