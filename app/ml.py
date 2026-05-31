@@ -6,8 +6,8 @@ import spacy
 from fastapi import HTTPException
 
 BASE_DIR = Path(__file__).resolve().parent
-STYLE_MODEL_PATH = BASE_DIR / "saving" / "style_model.pkl"
-TONE_MODEL_PATH = BASE_DIR / "saving" / "tone_model.pkl"
+STYLE_MODEL_PATH = BASE_DIR / "saving" / "style_model.joblib"
+TONE_MODEL_PATH = BASE_DIR / "saving" / "tone_model.joblib"
 
 models = {}
 nlp = None
