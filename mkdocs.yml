@@ -1,0 +1,92 @@
+site_name: Text Style & Tone Detection
+site_url: https://zave52.github.io/text-style-detection/
+site_description: >-
+  Machine learning system for classifying the writing style and emotional tone
+  of English text. End-to-end ML pipeline with FastAPI backend and Streamlit frontend.
+site_author: zave52
+
+repo_name: zave52/text-style-detection
+repo_url: https://github.com/zave52/text-style-detection
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+    - search.suggest
+    - search.highlight
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Dataset:
+      - Overview: dataset/overview.md
+      - Preprocessing: dataset/preprocessing.md
+  - Modeling:
+      - TF-IDF + LinearSVC: modeling/tfidf-linearsvc.md
+      - Embeddings + MultiOutput: modeling/embeddings-multioutput.md
+      - Results Comparison: modeling/results.md
+  - Application:
+      - Architecture: application/architecture.md
+      - API Reference: application/api.md
+      - Deployment: application/deployment.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.mark
+  - pymdownx.critic
+  - pymdownx.arithmatex:
+      generic: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/zave52
