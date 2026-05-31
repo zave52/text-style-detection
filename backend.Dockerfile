@@ -1,12 +1,8 @@
-FROM python:3.13-alpine3.23
+FROM python:3.13-slim-trixie
 
 WORKDIR /app
 
-RUN apk add --no-cache libgomp libstdc++ \
-	&& apk add --no-cache --virtual build-deps \
-	g++ \
-    && pip install --no-cache-dir fastapi joblib uvicorn scikit-learn \
-    && apk del build-deps
+RUN pip install --no-cache-dir fastapi joblib uvicorn scikit-learn spacy
 
 COPY app .
 COPY saving ./saving

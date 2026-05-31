@@ -27,60 +27,58 @@ with col2:
 with col3:
     btn_tone = st.button("Tone Only", use_container_width=True)
 
-if btn_all:
-    if user_text.strip():
-        with st.spinner("Analyzing..."):
-            try:
-                response = requests.post(
-                    f"{API_URL}/predict",
-                    json={"text": user_text}
-                )
-                if response.status_code == 200:
-                    result = response.json()
-                    st.success("✅ Style and Tone Predicted")
-                    st.write(f"**Style:** {result['style']}")
-                    st.write(f"**Tone:** {result['tone']}")
-                else:
-                    st.error(f"Error {response.status_code}: {response.text}")
-            except Exception as e:
-                st.error("Error connecting to the backend. Is FastAPI running?")
-    else:
+
+def handle_prediction(
+    endpoint: str,
+    text: str,
+    spinner_msg: str,
+    success_msg: str,
+    keys_to_show: list
+):
+    if not text.strip():
         st.warning("Please enter some text first.")
+        return
+
+    with st.spinner(spinner_msg):
+        try:
+            response = requests.post(
+                f"{API_URL}{endpoint}",
+                json={"text": text}
+            )
+            if response.status_code == 200:
+                result = response.json()
+                st.success(success_msg)
+                for key in keys_to_show:
+                    st.write(f"**{key.capitalize()}:** {result[key]}")
+            else:
+                st.error(f"Error {response.status_code}: {response.text}")
+        except Exception:
+            st.error("Error connecting to the backend")
+
+
+if btn_all:
+    handle_prediction(
+        "/predict",
+        user_text,
+        "Analyzing...",
+        "Style and Tone Predicted",
+        ["style", "tone"]
+    )
 
 if btn_style:
-    if user_text.strip():
-        with st.spinner("Analyzing style..."):
-            try:
-                response = requests.post(
-                    f"{API_URL}/predict/style",
-                    json={"text": user_text}
-                )
-                if response.status_code == 200:
-                    result = response.json()
-                    st.success("✅ Style Predicted")
-                    st.write(f"**Style:** {result['style']}")
-                else:
-                    st.error(f"Error {response.status_code}: {response.text}")
-            except Exception as e:
-                st.error("Error connecting to the backend.")
-    else:
-        st.warning("Please enter some text first.")
+    handle_prediction(
+        "/predict/style",
+        user_text,
+        "Analyzing style...",
+        "Style Predicted",
+        ["style"]
+    )
 
 if btn_tone:
-    if user_text.strip():
-        with st.spinner("Analyzing tone..."):
-            try:
-                response = requests.post(
-                    f"{API_URL}/predict/tone",
-                    json={"text": user_text}
-                )
-                if response.status_code == 200:
-                    result = response.json()
-                    st.success("✅ Tone Predicted")
-                    st.write(f"**Tone:** {result['tone']}")
-                else:
-                    st.error(f"Error {response.status_code}: {response.text}")
-            except Exception as e:
-                st.error("Error connecting to the backend.")
-    else:
-        st.warning("Please enter some text first.")
+    handle_prediction(
+        "/predict/tone",
+        user_text,
+        "Analyzing tone...",
+        "Tone Predicted",
+        ["tone"]
+    )
