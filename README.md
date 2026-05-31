@@ -2,6 +2,10 @@
 
 A machine learning system for classifying the **writing style** and **emotional tone** of English text. The project includes an end-to-end ML pipeline (EDA → modeling → evaluation), a FastAPI inference backend, and a Streamlit web interface — all containerized with Docker Compose.
 
+> **Live Demo:** [ec2-16-171-112-170.eu-north-1.compute.amazonaws.com](http://ec2-16-171-112-170.eu-north-1.compute.amazonaws.com)
+>
+> *Note: The demo is hosted on an AWS EC2 instance and may be unavailable at the time of viewing.*
+
 ## Table of Contents
 
 - [Overview](#overview)
