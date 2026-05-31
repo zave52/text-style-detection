@@ -58,6 +58,11 @@ text-style-detection/
 │   └── build_dataset.py          # Script to build dataset.csv from raw text files
 ├── dataset/                      # Raw text corpus (style/tone/sample.txt)
 │   ├── academic/
+│   │   ├── aggressive/
+│   │   ├── friendly/
+│   │   ├── neutral/
+│   │   ├── sarcastic/
+│   │   └── urgent/
 │   ├── business/
 │   ├── formal/
 │   ├── informal/
