@@ -2,38 +2,38 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://zave52.github.io/text-style-detection/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/application/api/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/application/architecture/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/application/deployment/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/dataset/overview/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/dataset/preprocessing/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/modeling/embeddings-multioutput/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/modeling/results/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
     <url>
          <loc>https://zave52.github.io/text-style-detection/modeling/tfidf-linearsvc/</loc>
-         <lastmod>2026-05-30</lastmod>
+         <lastmod>2026-05-31</lastmod>
     </url>
 </urlset>
