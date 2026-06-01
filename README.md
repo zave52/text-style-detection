@@ -16,6 +16,7 @@ A machine learning system for classifying the **writing style** and **emotional 
   - [Approach 1 — TF-IDF + LinearSVC](#approach-1--tf-idf--linearsvc)
   - [Approach 2 — spaCy Embeddings + MultiOutputClassifier](#approach-2--spacy-embeddings--multioutputclassifier)
 - [Results](#results)
+- [Documentation](#documentation)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Local Development](#local-development)
@@ -172,6 +173,19 @@ A single `MultiOutputClassifier` predicting both targets simultaneously:
 | RF | Tone | 0.880 | 0.846 ± 0.013 |
 
 > **Conclusion:** TF-IDF + LinearSVC outperforms the embedding-based approach on this dataset. The TF-IDF models are used for the deployed inference API.
+
+## Documentation
+
+Detailed project documentation is built with **MkDocs Material** and hosted on GitHub Pages:
+
+> **Documentation URL:** [zave52.github.io/text-style-detection](https://zave52.github.io/text-style-detection/)
+
+The documentation includes:
+- **Project Overview** — details about writing styles, emotional tones, and dataset balance.
+- **Exploratory Data Analysis** — visualization of word counts, label balance, and key text length statistics.
+- **Modeling Guide** — detailed workflow of TF-IDF extraction, LinearSVC parameters, and Word Embeddings alternatives.
+- **API Reference** — interactive endpoints documentation.
+- **Deployment Guide** — instruction manual for local development and Docker multi-container setup.
 
 ## Getting Started
 
