@@ -2260,23 +2260,23 @@ wheels = [
 name = "text-style-detection"
 version = "0.2.0"
 source = { virtual = "." }
-dependencies = [
+
+[package.dev-dependencies]
+api = [
     { name = "en-core-web-sm" },
     { name = "fastapi" },
     { name = "joblib" },
     { name = "numpy" },
-    { name = "pandas" },
-    { name = "requests" },
     { name = "scikit-learn" },
     { name = "spacy" },
-    { name = "streamlit" },
     { name = "torch", version = "2.15.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.15.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
     { name = "transformers" },
     { name = "uvicorn" },
 ]
-
-[package.dev-dependencies]
+data = [
+    { name = "pandas" },
+]
 dev = [
     { name = "httpx" },
     { name = "pytest" },
@@ -2292,25 +2292,27 @@ notebook = [
     { name = "matplotlib" },
     { name = "seaborn" },
 ]
+ui = [
+    { name = "requests" },
+    { name = "streamlit" },
+]
 
 [package.metadata]
-requires-dist = [
+
+[package.metadata.requires-dev]
+api = [
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fastapi", specifier = ">=0.136.3" },
     { name = "joblib", specifier = ">=1.5.3" },
     { name = "numpy", specifier = ">=2.0" },
-    { name = "pandas", specifier = ">=3.0.3" },
-    { name = "requests", specifier = ">=2.32" },
     { name = "scikit-learn", specifier = ">=1.5.0" },
     { name = "spacy", specifier = ">=3.8.13" },
-    { name = "streamlit", specifier = ">=1.57.0" },
     { name = "torch", marker = "sys_platform != 'darwin'", specifier = ">=2.6", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torch", marker = "sys_platform == 'darwin'", specifier = ">=2.6" },
     { name = "transformers", specifier = ">=4.46" },
     { name = "uvicorn", specifier = ">=0.48.0" },
 ]
-
-[package.metadata.requires-dev]
+data = [{ name = "pandas", specifier = ">=3.0.3" }]
 dev = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "pytest", specifier = ">=8.3" },
@@ -2323,6 +2325,10 @@ notebook = [
     { name = "jupyterlab", specifier = ">=4.2" },
     { name = "matplotlib", specifier = ">=3.9" },
     { name = "seaborn", specifier = ">=0.13.2" },
+]
+ui = [
+    { name = "requests", specifier = ">=2.32" },
+    { name = "streamlit", specifier = ">=1.57.0" },
 ]
 
 [[package]]

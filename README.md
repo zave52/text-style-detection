@@ -216,7 +216,7 @@ The raw corpus folder and the legacy models still use the misspelled label `lite
 git clone https://github.com/zave52/text-style-detection.git
 cd text-style-detection
 
-make install          # = uv sync: creates .venv (Python 3.13), installs app + dev + notebook deps
+make install          # = uv sync: creates .venv (Python 3.13) with all dependency groups
 ```
 
 Dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in `uv.lock`, so every developer gets identical versions.
@@ -230,7 +230,7 @@ PyTorch is installed in its **CPU build** by default, no GPU is required.
 | `make dataset` | Rebuild `data/dataset.csv` from `dataset/` |
 | `make test` / `make lint` | pytest / Ruff |
 | `make docs` | Serve the MkDocs documentation |
-| `make install-min` | Runtime dependencies only |
+| `make install-min` | Runtime dependencies only (`api` and `ui` groups) |
 
 Without `make`: `uv run uvicorn app.main:app --reload` and `uv run streamlit run frontend/app.py`.
 

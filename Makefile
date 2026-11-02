@@ -8,11 +8,11 @@ UI_PORT  ?= 8501
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-install: ## Create .venv (Python 3.13) and install app, dev, and notebook dependencies (CPU)
+install: ## Create .venv (Python 3.13) and install all dependencies (CPU)
 	uv sync
 
-install-min: ## Install only the runtime dependencies
-	uv sync --no-dev --no-group notebook
+install-min: ## Install only the runtime dependencies (API and UI)
+	uv sync --no-default-groups --group api --group ui
 
 kernel: ## Register the Jupyter kernel "text-style-detection"
 	uv run python -m ipykernel install --user --name text-style-detection --display-name "Python 3.13 (text-style-detection)"

@@ -62,42 +62,39 @@ docker compose logs -f
 
 ## Local Development Setup
 
-For developing the notebooks and retraining models (the application itself should be run via Docker):
+Dependencies are managed with [uv](https://docs.astral.sh/uv/) and declared in `pyproject.toml` (locked in `uv.lock`).
 
 ### Prerequisites
 
-- Python ≥ 3.10
-- pip
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (downloads Python 3.13 automatically)
+- `make` (optional)
 
 ### Steps
 
-1. **Create a virtual environment:**
+1. **Install all dependencies** (creates `.venv`, CPU build of PyTorch):
 
     ```bash
-    python -m venv .venv
-    source .venv/bin/activate     # Linux/macOS
-    # .venv\Scripts\activate      # Windows
+    make install      # or: uv sync
     ```
 
-2. **Install dependencies:**
+2. **Run the API and the interface** (in two terminals):
 
     ```bash
-    pip install -r requirements.txt
-    python -m spacy download en_core_web_sm
+    make api          # http://127.0.0.1:8000/docs
+    make ui           # http://localhost:8501
     ```
 
 3. **(Optional) Rebuild the dataset from raw text files:**
 
     ```bash
-    cd scripts
-    python build_dataset.py
-    cd ..
+    make dataset
     ```
 
 4. **(Optional) Retrain models:**
 
     ```bash
-    jupyter notebook
+    make kernel       # register the Jupyter kernel once
+    make notebook
     ```
 
     Execute the notebooks sequentially:
@@ -107,7 +104,7 @@ For developing the notebooks and retraining models (the application itself shoul
     3. `embedding_models_03.ipynb` — Embeddings + MultiOutput training
 
 !!! warning "Application deployment"
-    The FastAPI backend and Streamlit frontend are designed to run inside Docker containers. Use `docker compose up --build` to deploy the full application.
+    Use `docker compose up --build` to deploy the full application. The Docker images install dependencies from `pyproject.toml` and `uv.lock` (`api` group for the backend, `ui` group for the frontend).
 
 ---
 
