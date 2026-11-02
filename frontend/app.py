@@ -10,11 +10,7 @@ st.set_page_config(page_title="Style & Tone Detector", page_icon="🎭")
 st.title("🎭 Text Style & Tone Detection")
 st.markdown("Enter your text below to predict its style and tone.")
 
-user_text = st.text_area(
-    "Your Text:",
-    height=150,
-    placeholder="Type something here..."
-)
+user_text = st.text_area("Your Text:", height=150, placeholder="Type something here...")
 
 col1, col2, col3 = st.columns([1, 1, 1], gap="small")
 
@@ -29,11 +25,7 @@ with col3:
 
 
 def handle_prediction(
-    endpoint: str,
-    text: str,
-    spinner_msg: str,
-    success_msg: str,
-    keys_to_show: list
+    endpoint: str, text: str, spinner_msg: str, success_msg: str, keys_to_show: list
 ):
     if not text.strip():
         st.warning("Please enter some text first.")
@@ -41,10 +33,7 @@ def handle_prediction(
 
     with st.spinner(spinner_msg):
         try:
-            response = requests.post(
-                f"{API_URL}{endpoint}",
-                json={"text": text}
-            )
+            response = requests.post(f"{API_URL}{endpoint}", json={"text": text})
             if response.status_code == 200:
                 result = response.json()
                 st.success(success_msg)
@@ -58,27 +47,13 @@ def handle_prediction(
 
 if btn_all:
     handle_prediction(
-        "/predict",
-        user_text,
-        "Analyzing...",
-        "Style and Tone Predicted",
-        ["style", "tone"]
+        "/predict", user_text, "Analyzing...", "Style and Tone Predicted", ["style", "tone"]
     )
 
 if btn_style:
     handle_prediction(
-        "/predict/style",
-        user_text,
-        "Analyzing style...",
-        "Style Predicted",
-        ["style"]
+        "/predict/style", user_text, "Analyzing style...", "Style Predicted", ["style"]
     )
 
 if btn_tone:
-    handle_prediction(
-        "/predict/tone",
-        user_text,
-        "Analyzing tone...",
-        "Tone Predicted",
-        ["tone"]
-    )
+    handle_prediction("/predict/tone", user_text, "Analyzing tone...", "Tone Predicted", ["tone"])

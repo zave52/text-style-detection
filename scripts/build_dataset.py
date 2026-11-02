@@ -1,10 +1,11 @@
 import re
-from pathlib import Path
 
 import pandas as pd
 import spacy
 
-base_path = Path("../dataset")
+from app.config import DATASET_CSV, RAW_DATASET_DIR, SEED
+
+base_path = RAW_DATASET_DIR
 data = []
 nlp = spacy.load("en_core_web_sm")
 
@@ -15,7 +16,6 @@ def preprocess_text(text):
     clean_tokens = []
 
     for token in doc:
-
         if token.is_space:
             continue
 
@@ -33,18 +33,15 @@ def preprocess_text(text):
     return clean_text
 
 
-for style_path in base_path.iterdir():
-
+for style_path in sorted(base_path.iterdir()):
     if style_path.is_dir():
         style = style_path.name
 
-        for tone_path in style_path.iterdir():
-
+        for tone_path in sorted(style_path.iterdir()):
             if tone_path.is_dir():
                 tone = tone_path.name
 
-                for file_path in tone_path.glob("*.txt"):
-
+                for file_path in sorted(tone_path.glob("*.txt")):
                     try:
                         raw_text = file_path.read_text(encoding="utf-8").strip()
                         clean_text = preprocess_text(raw_text)
@@ -57,7 +54,7 @@ for style_path in base_path.iterdir():
                                 "text": raw_text,
                                 "clean_text": clean_text,
                                 "style": style,
-                                "tone": tone
+                                "tone": tone,
                             }
                         )
 
@@ -66,17 +63,10 @@ for style_path in base_path.iterdir():
 
 df = pd.DataFrame(data)
 
-df = df.sample(
-    frac=1,
-    random_state=42
-).reset_index(drop=True)
+df = df.sample(frac=1, random_state=SEED).reset_index(drop=True)
 
-output_file = Path("../data/dataset.csv")
+output_file = DATASET_CSV
 
-df.to_csv(
-    output_file,
-    index=False,
-    encoding="utf-8"
-)
+df.to_csv(output_file, index=False, encoding="utf-8")
 
 print(f"Done! Wrote {len(df)} rows to {output_file}")
