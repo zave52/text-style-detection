@@ -287,3 +287,12 @@ pyrightconfig.json
 *.keras
 
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm+all,visualstudiocode
+
+# Neural artifacts and generated reports (tracked selectively later)
+*.pt
+*.pth
+*.safetensors
+/artifacts/*
+!/artifacts/.gitkeep
+/reports/*
+!/reports/.gitkeep

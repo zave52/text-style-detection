@@ -50,6 +50,7 @@ Two modeling approaches are explored and compared across the analysis notebooks.
 ```
 text-style-detection/
 ├── app/                          # FastAPI backend
+│   ├── config.py                 #   Shared labels, paths, seed, input limits, device
 │   ├── main.py                   #   Application entrypoint & route definitions
 │   ├── ml.py                     #   Model loading, preprocessing & inference
 │   └── schemas.py                #   Pydantic request/response schemas
@@ -78,7 +79,8 @@ text-style-detection/
 ├── eda_01.ipynb                  # Notebook 01 — Exploratory Data Analysis
 ├── modelling_02.ipynb            # Notebook 02 — TF-IDF + LinearSVC modeling
 ├── embedding_models_03.ipynb     # Notebook 03 — spaCy embeddings + MultiOutput
-├── requirements.txt              # Python dependencies
+├── pyproject.toml                # Dependencies and tool configuration (uv)
+├── Makefile                      # Local launch and development commands
 ├── docker-compose.yml            # Docker Compose orchestration
 ├── backend.Dockerfile            # Backend container image
 └── frontend.Dockerfile           # Frontend container image
@@ -189,44 +191,60 @@ The documentation includes:
 
 ## Getting Started
 
+### Classification scope
+
+| Item | Value |
+|------|-------|
+| Input language | English |
+| Writing styles (5) | `academic`, `business`, `formal`, `informal`, `literary` |
+| Communicative tones (5) | `aggressive`, `friendly`, `neutral`, `sarcastic`, `urgent` |
+| Input limits | 1–2000 characters per text, up to 64 texts per batch |
+| Random seed | `42` |
+
+All labels, paths, the seed, and the limits are defined in one place: [`app/config.py`](app/config.py).
+The raw corpus folder and the legacy models still use the misspelled label `literaly`; it is mapped to `literary` by `LABEL_ALIASES`.
+
 ### Prerequisites
 
-- Python ≥ 3.10
-- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/) (for containerized deployment)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (it downloads Python 3.13 automatically)
+- `make` (optional, every command below also has a plain `uv run ...` form)
+- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/) (only for containerized deployment)
 
 ### Local Development
 
-1. **Clone the repository:**
+```bash
+git clone https://github.com/zave52/text-style-detection.git
+cd text-style-detection
 
-   ```bash
-   git clone https://github.com/zave52/text-style-detection.git
-   cd text-style-detection
-   ```
+make install          # = uv sync: creates .venv (Python 3.13) with all dependency groups
+```
 
-2. **Create a virtual environment and install dependencies:**
+Dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in `uv.lock`, so every developer gets identical versions.
+PyTorch is installed in its **CPU build** by default, no GPU is required.
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   python -m spacy download en_core_web_sm
-   ```
+| Command | What it does |
+|---------|--------------|
+| `make api` | FastAPI on http://127.0.0.1:8000 (Swagger UI at `/docs`) |
+| `make ui` | Streamlit on http://localhost:8501 (talks to the API, start `make api` first) |
+| `make notebook` | JupyterLab (run `make kernel` once to register the kernel) |
+| `make dataset` | Rebuild `data/dataset.csv` from `dataset/` |
+| `make test` / `make lint` | pytest / Ruff |
+| `make docs` | Serve the MkDocs documentation |
+| `make install-min` | Runtime dependencies only (`api` and `ui` groups) |
 
-3. **(Optional) Rebuild the dataset from raw text files:**
+Without `make`: `uv run uvicorn app.main:app --reload` and `uv run streamlit run frontend/app.py`.
 
-   ```bash
-   cd scripts
-   python build_dataset.py
-   cd ..
-   ```
+**Configuration through environment variables**
 
-4. **(Optional) Retrain models — run the Jupyter notebooks in order:**
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `TSD_DEVICE` | `cpu` | `cpu`, `cuda`, or `auto` (CUDA if available) |
+| `TSD_API_HOST` / `TSD_API_PORT` | `127.0.0.1` / `8000` | API bind address |
+| `API_URL` | `http://localhost:8000` | API address used by the Streamlit interface |
 
-   ```bash
-   jupyter notebook
-   ```
-
-   Execute the notebooks sequentially: `eda_01.ipynb` → `modelling_02.ipynb` → `embedding_models_03.ipynb`
+**Optional: NVIDIA GPU.** Replace the CPU build with a CUDA build, for example
+`uv pip install torch --index-url https://download.pytorch.org/whl/cu126`, and run with `TSD_DEVICE=auto`.
+Note that a later `uv sync` restores the CPU build.
 
 ### Docker Deployment
 
@@ -295,7 +313,7 @@ Predict tone only.
 
 | Component | Technology |
 |-----------|------------|
-| ML / NLP | scikit-learn, spaCy, pandas, seaborn, matplotlib |
+| ML / NLP | scikit-learn, spaCy, PyTorch, Transformers, pandas, seaborn, matplotlib |
 | Backend API | FastAPI, Uvicorn |
 | Frontend | Streamlit |
 | Containerization | Docker, Docker Compose, Nginx |

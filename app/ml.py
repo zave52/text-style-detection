@@ -1,13 +1,13 @@
 import re
-from pathlib import Path
 
 import joblib
 import spacy
 from fastapi import HTTPException
 
-BASE_DIR = Path(__file__).resolve().parent
-STYLE_MODEL_PATH = BASE_DIR / "saving" / "style_model.joblib"
-TONE_MODEL_PATH = BASE_DIR / "saving" / "tone_model.joblib"
+from app.config import LEGACY_MODELS_DIR
+
+STYLE_MODEL_PATH = LEGACY_MODELS_DIR / "style_model.joblib"
+TONE_MODEL_PATH = LEGACY_MODELS_DIR / "tone_model.joblib"
 
 models = {}
 nlp = None
@@ -70,10 +70,7 @@ def clear_models():
 def check_models_loaded(model_keys):
     for key in model_keys:
         if key not in models:
-            raise HTTPException(
-                status_code=503,
-                detail=f"{key.capitalize()} model is not loaded."
-            )
+            raise HTTPException(status_code=503, detail=f"{key.capitalize()} model is not loaded.")
 
 
 def predict_style(text: str) -> str:

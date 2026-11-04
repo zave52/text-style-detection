@@ -1,0 +1,77 @@
+[project]
+name = "text-style-detection"
+version = "0.2.0"
+description = "Multi-task English text style and tone classification (TextCNN, BiLSTM, DistilBERT) with FastAPI and Streamlit."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+# Everything lives in dependency groups so that each Docker image installs only what it needs.
+dependencies = []
+
+[dependency-groups]
+# Backend: FastAPI service, classical baseline, and neural inference (CPU wheels by default).
+api = [
+    "fastapi>=0.136.3",
+    "uvicorn>=0.48.0",
+    "joblib>=1.5.3",
+    "numpy>=2.0",
+    "scikit-learn>=1.5.0",
+    "spacy>=3.8.13",
+    "en-core-web-sm",
+    "torch>=2.6",
+    "transformers>=4.46",
+]
+# Frontend: Streamlit interface that talks to the API.
+ui = [
+    "streamlit>=1.57.0",
+    "requests>=2.32",
+]
+# Dataset building and analysis.
+data = [
+    "pandas>=3.0.3",
+]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",  # FastAPI TestClient
+    "ruff>=0.8",
+]
+notebook = [
+    "jupyterlab>=4.2",
+    "ipykernel>=6.29",
+    "ipywidgets>=8.1",
+    "matplotlib>=3.9",
+    "seaborn>=0.13.2",
+]
+docs = [
+    "mkdocs-material>=9.5",
+]
+
+[tool.uv]
+# This is an application, not a library: dependencies are installed, the code is not.
+package = false
+# `uv sync` installs every group except `docs` (a full development environment).
+# Docker images install a single group, e.g. `uv sync --no-default-groups --group api`.
+default-groups = ["api", "ui", "data", "dev", "notebook"]
+
+# CPU-only PyTorch on Linux and Windows (small download, works everywhere).
+# macOS wheels from PyPI already support CPU and Apple GPU.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["*.ipynb", "skills", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"

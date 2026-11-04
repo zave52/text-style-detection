@@ -1,0 +1,6 @@
+[server]
+# Do not open a browser or ask for an email on the first run; the URL is printed instead.
+headless = true
+
+[browser]
+gatherUsageStats = false
