@@ -1,0 +1,38 @@
+{
+  "source_sha256": "db398e8bd7df639a977071b7459302ff707458da8a4a82ca8f89bdacf9c1d9dc",
+  "source_rows": 1000,
+  "empty_removed": 0,
+  "duplicates_removed": 0,
+  "conflicting_groups_removed": 1,
+  "conflicting_rows_removed": 2,
+  "excluded_conflicts": [
+    {
+      "text": "Respond immediately.",
+      "style": "business",
+      "tone": "urgent"
+    },
+    {
+      "text": "Respond immediately.",
+      "style": "formal",
+      "tone": "urgent"
+    }
+  ],
+  "label_aliases_fixed": 200,
+  "clean_rows": 998,
+  "class_distribution": {
+    "style": {
+      "academic": 200,
+      "informal": 200,
+      "literary": 200,
+      "business": 199,
+      "formal": 199
+    },
+    "tone": {
+      "aggressive": 200,
+      "friendly": 200,
+      "neutral": 200,
+      "sarcastic": 200,
+      "urgent": 198
+    }
+  }
+}

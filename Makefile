@@ -29,7 +29,7 @@ notebook: ## Start JupyterLab
 docs: ## Serve the MkDocs documentation locally
 	uv run --group docs mkdocs serve
 
-dataset: ## Rebuild data/dataset.csv from the raw text files
+dataset: ## Compile, audit, and clean the corpus into data/prepared/
 	uv run python -m scripts.build_dataset
 
 test: ## Run the test suite

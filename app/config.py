@@ -60,11 +60,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 RAW_DATASET_DIR = PROJECT_ROOT / "dataset"  # dataset/<style>/<tone>/*.txt
 DATA_DIR = PROJECT_ROOT / "data"
-DATASET_CSV = DATA_DIR / "dataset.csv"
+DATASET_CSV = DATA_DIR / "dataset.csv"  # Legacy dataset from ML course (1000 rows)
+
+RAW_DATA_DIR = DATA_DIR / "raw"
+RAW_DATASET_CSV = RAW_DATA_DIR / "dataset.csv"  # Compiled raw dataset (1000 rows)
+
+PREPARED_DATA_DIR = DATA_DIR / "prepared"
+CLEAN_DATASET_CSV = PREPARED_DATA_DIR / "dataset.csv"  # Clean audited dataset (998 rows)
+EXCLUDED_CONFLICTS_CSV = PREPARED_DATA_DIR / "excluded_conflicts.csv"
 
 LEGACY_MODELS_DIR = PROJECT_ROOT / "saving"  # TF-IDF + LinearSVC from the ML course
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"  # neural checkpoints, tokenizers, calibration
-REPORTS_DIR = PROJECT_ROOT / "reports"  # metrics, confusion matrices, error analysis
+REPORTS_DIR = PROJECT_ROOT / "reports"  # metrics, confusion matrices, audit summaries
+CORPUS_AUDIT_JSON = REPORTS_DIR / "corpus_audit.json"
+CORPUS_AUDIT_MD = REPORTS_DIR / "corpus_audit.md"
 
 # --------------------------------------------------------------------------- #
 # Reproducibility

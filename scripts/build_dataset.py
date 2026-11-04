@@ -1,72 +1,63 @@
-import re
+"""CLI script to compile and audit the raw dataset into structured data."""
 
-import pandas as pd
-import spacy
+from __future__ import annotations
 
-from app.config import DATASET_CSV, RAW_DATASET_DIR, SEED
+import argparse
+from pathlib import Path
 
-base_path = RAW_DATASET_DIR
-data = []
-nlp = spacy.load("en_core_web_sm")
-
-
-def preprocess_text(text):
-    text = re.sub(r"http\S+|www\S+", "", text)
-    doc = nlp(text)
-    clean_tokens = []
-
-    for token in doc:
-        if token.is_space:
-            continue
-
-        if token.is_punct:
-            clean_tokens.append(token.text)
-
-        else:
-            lemma = token.lemma_.strip()
-
-            if lemma:
-                clean_tokens.append(lemma.lower())
-
-    clean_text = " ".join(clean_tokens)
-    clean_text = re.sub(r"\s+", " ", clean_text).strip()
-    return clean_text
+from app.config import (
+    CORPUS_AUDIT_JSON,
+    PREPARED_DATA_DIR,
+    RAW_DATASET_CSV,
+    RAW_DATASET_DIR,
+)
+from app.data import build_and_audit
 
 
-for style_path in sorted(base_path.iterdir()):
-    if style_path.is_dir():
-        style = style_path.name
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=RAW_DATASET_DIR,
+        help="Path to raw dataset directory with style/tone text files",
+    )
+    parser.add_argument(
+        "--raw-output",
+        type=Path,
+        default=RAW_DATASET_CSV,
+        help="Path to save the compiled raw CSV",
+    )
+    parser.add_argument(
+        "--prepared-dir",
+        type=Path,
+        default=PREPARED_DATA_DIR,
+        help="Path to save the clean dataset and excluded conflicts",
+    )
+    parser.add_argument(
+        "--reports-dir",
+        type=Path,
+        default=CORPUS_AUDIT_JSON.parent,
+        help="Directory to save audit reports (JSON and Markdown)",
+    )
+    args = parser.parse_args()
 
-        for tone_path in sorted(style_path.iterdir()):
-            if tone_path.is_dir():
-                tone = tone_path.name
+    clean_df, audit = build_and_audit(
+        source_dir=args.source,
+        raw_output=args.raw_output,
+        prepared_dir=args.prepared_dir,
+        reports_dir=args.reports_dir,
+    )
 
-                for file_path in sorted(tone_path.glob("*.txt")):
-                    try:
-                        raw_text = file_path.read_text(encoding="utf-8").strip()
-                        clean_text = preprocess_text(raw_text)
+    print(
+        f"Done! Compiled {audit['source_rows']} raw samples -> {audit['clean_rows']} clean rows.\n"
+        f"  Raw dataset:          {args.raw_output}\n"
+        f"  Clean dataset:        {args.prepared_dir / 'dataset.csv'}\n"
+        f"  Excluded conflicts:   {args.prepared_dir / 'excluded_conflicts.csv'}\n"
+        f"  Audit report (JSON):  {args.reports_dir / 'corpus_audit.json'}\n"
+        f"  Audit report (MD):    {args.reports_dir / 'corpus_audit.md'}"
+    )
 
-                        if not clean_text:
-                            continue
 
-                        data.append(
-                            {
-                                "text": raw_text,
-                                "clean_text": clean_text,
-                                "style": style,
-                                "tone": tone,
-                            }
-                        )
-
-                    except Exception as e:
-                        print(f"Error {file_path.name}: {e}")
-
-df = pd.DataFrame(data)
-
-df = df.sample(frac=1, random_state=SEED).reset_index(drop=True)
-
-output_file = DATASET_CSV
-
-df.to_csv(output_file, index=False, encoding="utf-8")
-
-print(f"Done! Wrote {len(df)} rows to {output_file}")
+if __name__ == "__main__":
+    main()
