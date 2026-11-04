@@ -77,10 +77,15 @@ text-style-detection/
 │   └── prepared/
 │       ├── dataset.csv           #   Clean, audited dataset (998 samples, sample_id)
 │       ├── excluded_conflicts.csv #  Excluded conflicting records for review
-│       └── corpus_audit.json     #   Audit metadata and summary
+│       ├── corpus_audit.json     #   Audit metadata and summary
+│       ├── train.csv             #   Training split (632 samples, group-aware)
+│       ├── validation.csv        #   Validation split (158 samples, group-aware)
+│       ├── test.csv              #   Test split (208 samples, group-aware)
+│       └── manifest.json         #   Fingerprints and split statistics
 ├── reports/
 │   ├── corpus_audit.md           # Human-readable corpus audit report
-│   └── corpus_audit.json         # Machine-readable audit metrics
+│   ├── corpus_audit.json         # Machine-readable audit metrics
+│   └── data_splits.md            # Data splits and leakage prevention report
 ├── saving/                       # Trained TF-IDF + LinearSVC models
 │   ├── style_model.joblib        # (not commited to git)
 │   └── tone_model.joblib         # (not commited to git)
@@ -114,6 +119,7 @@ The deep learning pipeline compiles raw text files and runs an audit (`app/data.
 3. **Conflict Detection:** Identifies exact text duplicates with conflicting labels. Two records with the text `Respond immediately.` (labeled as `business` and `formal`) are excluded and saved to `data/prepared/excluded_conflicts.csv` rather than arbitrarily choosing one label.
 4. **Clean Dataset:** Produces 998 clean verified samples with unique `sample_id` hashes (`data/prepared/dataset.csv`).
 5. **Audit Reports:** Generates `reports/corpus_audit.md` and `reports/corpus_audit.json`.
+6. **Reproducible Splits & Leakage Prevention:** Groups near-duplicates (word trigram Jaccard ≥ 0.82 or containment ≥ 0.95) into connected components. Applies nested `StratifiedGroupKFold` on combined `style__tone` strata, producing a 632 / 158 / 208 train/val/test split with zero overlap across identifiers, groups, and normalized texts (`data/prepared/manifest.json`, `reports/data_splits.md`).
 
 ### Text Preprocessing (Classical ML Baseline)
 
