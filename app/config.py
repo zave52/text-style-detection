@@ -114,6 +114,13 @@ MIN_INPUT_CHARS = 1
 MAX_INPUT_CHARS = 2000
 MAX_BATCH_SIZE = 64
 
+# Tokenization and neural sequence limits
+DEFAULT_MAX_LENGTH = 256
+DEFAULT_MIN_LENGTH = 5
+VOCAB_PAD_ID = 0
+VOCAB_UNK_ID = 1
+VOCAB_MAX_SIZE = 12000
+
 # --------------------------------------------------------------------------- #
 # Runtime
 # --------------------------------------------------------------------------- #
