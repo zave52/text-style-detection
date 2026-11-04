@@ -1,9 +1,10 @@
-"""Corpus compilation and audit pipeline.
+"""Corpus compilation, validation, audit, and reproducible splitting pipeline.
 
 Compiles raw text files from ``dataset/<style>/<tone>/*.txt`` into a structured
 dataset, validates required columns and allowed labels, normalizes legacy
-spelling variants, detects duplicate texts and conflicting annotations, and
-produces an audit report.
+spelling variants, detects duplicate texts and conflicting annotations, clusters
+near-duplicates into similarity groups, and partitions the corpus into
+leakage-free train, validation, and test splits with a verified manifest.
 """
 
 from __future__ import annotations
@@ -11,10 +12,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from sklearn.model_selection import StratifiedGroupKFold
 
 from app.config import (
     CORPUS_AUDIT_JSON,
@@ -22,6 +26,7 @@ from app.config import (
     PREPARED_DATA_DIR,
     RAW_DATASET_CSV,
     RAW_DATASET_DIR,
+    SEED,
     STYLES,
     TONES,
 )
@@ -179,6 +184,170 @@ def read_corpus(source: Path | pd.DataFrame) -> tuple[pd.DataFrame, dict[str, An
     return clean_frame, audit
 
 
+def similarity_groups(texts: list[str], threshold: float = 0.82) -> list[int]:
+    """Conservatively group near-copies using word trigrams before splitting.
+
+    Also groups a nearly contained passage when it is at least half as long.
+    This serves as an unsupervised data-leakage safeguard.
+    """
+    parent = list(range(len(texts)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    grams: list[set[tuple[str, ...]]] = []
+    for text in texts:
+        words = re.findall(r"\w+", text.casefold())
+        grams.append({tuple(words[i : i + 3]) for i in range(len(words) - 2)})
+
+    for i, a in enumerate(grams):
+        if len(a) < 8:
+            continue
+        for j in range(i):
+            b = grams[j]
+            shorter, longer = min(len(a), len(b)), max(len(a), len(b))
+            if shorter < 8 or shorter / longer < 0.5:
+                continue
+            intersection = len(a & b)
+            union = len(a) + len(b) - intersection
+            if intersection / union >= threshold or intersection / shorter >= 0.95:
+                ra, rb = root(i), root(j)
+                parent[max(ra, rb)] = min(ra, rb)
+
+    return [root(i) for i in range(len(texts))]
+
+
+def verify_splits(frames: dict[str, pd.DataFrame]) -> None:
+    """Verify that train, validation, and test splits have zero data leakage."""
+    names = list(frames)
+    for i, name in enumerate(names):
+        if frames[name].empty:
+            raise ValueError(f"Empty {name} split")
+        for other in names[:i]:
+            for column in ["sample_id", "group_id"]:
+                if column in frames[name].columns and column in frames[other].columns:
+                    overlap = set(frames[name][column]) & set(frames[other][column])
+                    if overlap:
+                        raise ValueError(
+                            f"Data leakage between {name} and {other}: {column} overlap: {overlap}"
+                        )
+            overlap_texts = set(frames[name].text.map(text_key)) & set(
+                frames[other].text.map(text_key)
+            )
+            if overlap_texts:
+                raise ValueError(
+                    f"Duplicate text crosses split boundary between {name} and {other}"
+                )
+
+
+def prepare_splits(
+    source: Path | pd.DataFrame = RAW_DATASET_CSV,
+    destination: Path = PREPARED_DATA_DIR,
+    reports_dir: Path = CORPUS_AUDIT_JSON.parent,
+    seed: int = SEED,
+) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+    """Partition the audited corpus into reproducible, leakage-free splits.
+
+    Uses nested StratifiedGroupKFold on joint ``style__tone`` strata to keep
+    near-duplicate text groups together while maintaining class balance.
+    """
+    frame, audit = read_corpus(source)
+    frame["group_id"] = similarity_groups(frame.text.tolist())
+
+    strata = frame["style"] + "__" + frame["tone"]
+    outer = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=seed)
+    trainval_idx, test_idx = next(outer.split(frame, strata, frame.group_id))
+    trainval = frame.iloc[trainval_idx].reset_index(drop=True)
+
+    inner = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=seed + 1)
+    train_idx, val_idx = next(
+        inner.split(trainval, trainval["style"] + "__" + trainval["tone"], trainval.group_id)
+    )
+
+    frames: dict[str, pd.DataFrame] = {
+        "train": trainval.iloc[train_idx].reset_index(drop=True),
+        "validation": trainval.iloc[val_idx].reset_index(drop=True),
+        "test": frame.iloc[test_idx].reset_index(drop=True),
+    }
+
+    verify_splits(frames)
+
+    destination.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(destination / "dataset.csv", index=False)
+
+    if audit.get("excluded_conflicts"):
+        pd.DataFrame(audit["excluded_conflicts"]).to_csv(
+            destination / "excluded_conflicts.csv", index=False
+        )
+
+    audit.update(
+        {
+            "seed": seed,
+            "near_duplicate_groups": int(frame.group_id.nunique()),
+            "grouping": {
+                "word_trigram_jaccard": 0.82,
+                "containment": 0.95,
+                "min_length_ratio": 0.5,
+            },
+            "strategy": (
+                "Nested five-fold StratifiedGroupKFold, joint style/tone strata, first folds"
+            ),
+            "approximate_ratios": {"train": 0.64, "validation": 0.16, "test": 0.20},
+            "splits": {},
+        }
+    )
+
+    for name, part in frames.items():
+        path = destination / f"{name}.csv"
+        part.to_csv(path, index=False)
+        audit["splits"][name] = {
+            "rows": len(part),
+            "sha256": fingerprint(path),
+            "style": dict(Counter(part["style"])),
+            "tone": dict(Counter(part["tone"])),
+        }
+
+    manifest_json = json.dumps(audit, indent=2)
+    (destination / "manifest.json").write_text(manifest_json, encoding="utf-8")
+    (destination / "corpus_audit.json").write_text(manifest_json, encoding="utf-8")
+
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    (reports_dir / "corpus_audit.json").write_text(manifest_json, encoding="utf-8")
+    (reports_dir / "corpus_audit.md").write_text(generate_audit_markdown(audit), encoding="utf-8")
+    (reports_dir / "data_splits.md").write_text(generate_splits_markdown(audit), encoding="utf-8")
+
+    return frames, audit
+
+
+def load_splits(
+    directory: Path = PREPARED_DATA_DIR,
+) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+    """Load and verify reproducible splits from ``directory`` against ``manifest.json``."""
+    manifest_file = directory / "manifest.json"
+    if not manifest_file.is_file():
+        raise FileNotFoundError(f"Manifest file not found: {manifest_file}")
+
+    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    frames: dict[str, pd.DataFrame] = {}
+
+    for name, info in manifest["splits"].items():
+        path = directory / f"{name}.csv"
+        if not path.is_file():
+            raise FileNotFoundError(f"Split file missing: {path}")
+        if fingerprint(path) != info["sha256"]:
+            raise ValueError(
+                f"Split fingerprint mismatch for {path}. Expected {info['sha256']}, "
+                f"got {fingerprint(path)}. Re-run data preparation before training."
+            )
+        frames[name] = pd.read_csv(path, keep_default_na=False)
+
+    verify_splits(frames)
+    return frames, manifest
+
+
 def generate_audit_markdown(audit: dict[str, Any]) -> str:
     """Generate a readable Markdown report from the audit summary."""
     lines: list[str] = [
@@ -253,79 +422,135 @@ def generate_audit_markdown(audit: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def generate_splits_markdown(manifest: dict[str, Any]) -> str:
+    """Generate a Markdown report detailing split sizes, distributions, and hashes."""
+    total_rows = manifest.get("clean_rows", 998)
+    splits = manifest.get("splits", {})
+
+    lines: list[str] = [
+        "# Data Splits and Leakage Prevention Report",
+        "",
+        "## Splitting Strategy",
+        "",
+        "- **Method:** Nested 5-fold `StratifiedGroupKFold` on combined `style__tone` strata.",
+        (
+            "- **Near-duplicate grouping:** Word trigram Jaccard similarity ≥ 0.82 "
+            "or containment ≥ 0.95."
+        ),
+        f"- **Unique groups:** {manifest.get('near_duplicate_groups', 'N/A')} groups "
+        f"across {total_rows} clean texts.",
+        (
+            f"- **Random seed:** `{manifest.get('seed', SEED)}` "
+            "(outer fold seed=42, inner fold seed=43)."
+        ),
+        (
+            "- **Disjointness:** Zero overlap between splits for "
+            "`sample_id`, `group_id`, and normalized text."
+        ),
+        "",
+        "## Split Summary",
+        "",
+        "| Split | Rows | Percentage | SHA-256 Hash |",
+        "|---|---:|---:|---|",
+    ]
+
+    for name in ["train", "validation", "test"]:
+        info = splits.get(name, {})
+        rows = info.get("rows", 0)
+        pct = (rows / total_rows * 100) if total_rows else 0
+        sha = info.get("sha256", "N/A")
+        lines.append(f"| **{name.capitalize()}** | {rows} | {pct:.1f}% | `{sha}` |")
+
+    lines.extend(
+        [
+            "",
+            "## Class Distributions Across Splits",
+            "",
+            "### Writing Styles",
+            "",
+            "| Style | Train | Validation | Test | Total |",
+            "|---|---:|---:|---:|---:|",
+        ]
+    )
+
+    for style in STYLES:
+        tr = splits.get("train", {}).get("style", {}).get(style, 0)
+        va = splits.get("validation", {}).get("style", {}).get(style, 0)
+        te = splits.get("test", {}).get("style", {}).get(style, 0)
+        lines.append(f"| `{style}` | {tr} | {va} | {te} | {tr + va + te} |")
+
+    lines.extend(
+        [
+            "",
+            "### Communicative Tones",
+            "",
+            "| Tone | Train | Validation | Test | Total |",
+            "|---|---:|---:|---:|---:|",
+        ]
+    )
+
+    for tone in TONES:
+        tr = splits.get("train", {}).get("tone", {}).get(tone, 0)
+        va = splits.get("validation", {}).get("tone", {}).get(tone, 0)
+        te = splits.get("test", {}).get("tone", {}).get(tone, 0)
+        lines.append(f"| `{tone}` | {tr} | {va} | {te} | {tr + va + te} |")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def build_and_audit(
     source_dir: Path = RAW_DATASET_DIR,
     raw_output: Path | None = RAW_DATASET_CSV,
     prepared_dir: Path = PREPARED_DATA_DIR,
     reports_dir: Path = CORPUS_AUDIT_JSON.parent,
-) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """Execute the end-to-end corpus compilation and audit.
+    recompile_from_files: bool = False,
+) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+    """Execute end-to-end dataset compilation, audit, and split preparation."""
+    if recompile_from_files or raw_output is None or not raw_output.is_file():
+        raw_df = compile_raw_corpus(source_dir)
+        if raw_output is not None:
+            raw_output.parent.mkdir(parents=True, exist_ok=True)
+            raw_df.to_csv(raw_output, index=False, encoding="utf-8")
+        source: Path | pd.DataFrame = raw_df
+    else:
+        source = raw_output
 
-    1. Compiles raw text files from ``source_dir``.
-    2. Saves the compiled raw dataset to ``raw_output`` (if provided).
-    3. Runs ``read_corpus`` audit.
-    4. Writes ``dataset.csv`` and ``excluded_conflicts.csv`` to ``prepared_dir``.
-    5. Writes audit reports (JSON and Markdown) to ``reports_dir``.
-    """
-    raw_df = compile_raw_corpus(source_dir)
-
-    if raw_output is not None:
-        raw_output.parent.mkdir(parents=True, exist_ok=True)
-        raw_df.to_csv(raw_output, index=False, encoding="utf-8")
-
-    clean_df, audit = read_corpus(raw_df)
-
-    prepared_dir.mkdir(parents=True, exist_ok=True)
-    clean_df.to_csv(prepared_dir / "dataset.csv", index=False, encoding="utf-8")
-
-    if audit["excluded_conflicts"]:
-        pd.DataFrame(audit["excluded_conflicts"]).to_csv(
-            prepared_dir / "excluded_conflicts.csv", index=False, encoding="utf-8"
-        )
-
-    audit_json = json.dumps(audit, indent=2)
-    (prepared_dir / "corpus_audit.json").write_text(audit_json, encoding="utf-8")
-
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    json_path = reports_dir / "corpus_audit.json"
-    md_path = reports_dir / "corpus_audit.md"
-
-    json_path.write_text(audit_json, encoding="utf-8")
-    md_path.write_text(generate_audit_markdown(audit), encoding="utf-8")
-
-    return clean_df, audit
+    frames, manifest = prepare_splits(
+        source=source,
+        destination=prepared_dir,
+        reports_dir=reports_dir,
+    )
+    return frames, manifest
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", type=Path, default=RAW_DATASET_CSV, help="Source dataset CSV")
     parser.add_argument(
-        "--source", type=Path, default=RAW_DATASET_DIR, help="Source dataset directory"
-    )
-    parser.add_argument(
-        "--raw-output", type=Path, default=RAW_DATASET_CSV, help="Path for raw compiled CSV"
-    )
-    parser.add_argument(
-        "--prepared-dir", type=Path, default=PREPARED_DATA_DIR, help="Directory for clean CSVs"
+        "--prepared-dir", type=Path, default=PREPARED_DATA_DIR, help="Directory for split CSVs"
     )
     parser.add_argument(
         "--reports-dir",
         type=Path,
         default=CORPUS_AUDIT_JSON.parent,
-        help="Directory for audit reports",
+        help="Directory for audit and split reports",
     )
+    parser.add_argument("--seed", type=int, default=SEED, help="Random seed for splitting")
     args = parser.parse_args()
 
-    clean_df, audit = build_and_audit(
-        source_dir=args.source,
-        raw_output=args.raw_output,
-        prepared_dir=args.prepared_dir,
+    frames, manifest = prepare_splits(
+        source=args.source,
+        destination=args.prepared_dir,
         reports_dir=args.reports_dir,
+        seed=args.seed,
     )
     print(
-        f"Audited {audit['source_rows']} source rows -> "
-        f"{audit['clean_rows']} clean rows saved to {args.prepared_dir}"
+        f"Prepared {manifest['clean_rows']} samples into "
+        f"train ({len(frames['train'])}), validation ({len(frames['validation'])}), "
+        f"test ({len(frames['test'])}) -> {args.prepared_dir}"
     )
-    print(f"Audit report saved to {args.reports_dir / 'corpus_audit.json'}")
+    print(f"Manifest written to {args.prepared_dir / 'manifest.json'}")
 
 
 if __name__ == "__main__":

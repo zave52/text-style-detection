@@ -68,12 +68,17 @@ RAW_DATASET_CSV = RAW_DATA_DIR / "dataset.csv"  # Compiled raw dataset (1000 row
 PREPARED_DATA_DIR = DATA_DIR / "prepared"
 CLEAN_DATASET_CSV = PREPARED_DATA_DIR / "dataset.csv"  # Clean audited dataset (998 rows)
 EXCLUDED_CONFLICTS_CSV = PREPARED_DATA_DIR / "excluded_conflicts.csv"
+TRAIN_CSV = PREPARED_DATA_DIR / "train.csv"
+VALIDATION_CSV = PREPARED_DATA_DIR / "validation.csv"
+TEST_CSV = PREPARED_DATA_DIR / "test.csv"
+MANIFEST_JSON = PREPARED_DATA_DIR / "manifest.json"
 
 LEGACY_MODELS_DIR = PROJECT_ROOT / "saving"  # TF-IDF + LinearSVC from the ML course
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"  # neural checkpoints, tokenizers, calibration
 REPORTS_DIR = PROJECT_ROOT / "reports"  # metrics, confusion matrices, audit summaries
 CORPUS_AUDIT_JSON = REPORTS_DIR / "corpus_audit.json"
 CORPUS_AUDIT_MD = REPORTS_DIR / "corpus_audit.md"
+DATA_SPLITS_MD = REPORTS_DIR / "data_splits.md"
 
 # --------------------------------------------------------------------------- #
 # Reproducibility

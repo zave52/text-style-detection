@@ -1,0 +1,107 @@
+{
+  "source_sha256": "078c8106329a2caffa6636ed02f4fcdbe23ab730693c051c1ecb6e7643200cb7",
+  "source_rows": 1000,
+  "empty_removed": 0,
+  "duplicates_removed": 0,
+  "conflicting_groups_removed": 1,
+  "conflicting_rows_removed": 2,
+  "excluded_conflicts": [
+    {
+      "text": "Respond immediately.",
+      "style": "business",
+      "tone": "urgent"
+    },
+    {
+      "text": "Respond immediately.",
+      "style": "formal",
+      "tone": "urgent"
+    }
+  ],
+  "label_aliases_fixed": 200,
+  "clean_rows": 998,
+  "class_distribution": {
+    "style": {
+      "academic": 200,
+      "informal": 200,
+      "literary": 200,
+      "business": 199,
+      "formal": 199
+    },
+    "tone": {
+      "aggressive": 200,
+      "sarcastic": 200,
+      "neutral": 200,
+      "friendly": 200,
+      "urgent": 198
+    }
+  },
+  "seed": 42,
+  "near_duplicate_groups": 968,
+  "grouping": {
+    "word_trigram_jaccard": 0.82,
+    "containment": 0.95,
+    "min_length_ratio": 0.5
+  },
+  "strategy": "Nested five-fold StratifiedGroupKFold, joint style/tone strata, first folds",
+  "approximate_ratios": {
+    "train": 0.64,
+    "validation": 0.16,
+    "test": 0.2
+  },
+  "splits": {
+    "train": {
+      "rows": 632,
+      "sha256": "bf70d74eb7775b387867c7b94c5cffe74b8488fd711229c1c880f3ce6b29af23",
+      "style": {
+        "academic": 128,
+        "business": 120,
+        "formal": 128,
+        "informal": 128,
+        "literary": 128
+      },
+      "tone": {
+        "aggressive": 125,
+        "sarcastic": 129,
+        "neutral": 129,
+        "urgent": 122,
+        "friendly": 127
+      }
+    },
+    "validation": {
+      "rows": 158,
+      "sha256": "a1886267233bdf51109731ce90a3dfc6bf2ac94d2f1fd8c5e10aac64f654a7da",
+      "style": {
+        "informal": 32,
+        "formal": 32,
+        "academic": 32,
+        "literary": 32,
+        "business": 30
+      },
+      "tone": {
+        "sarcastic": 31,
+        "friendly": 33,
+        "aggressive": 35,
+        "neutral": 31,
+        "urgent": 28
+      }
+    },
+    "test": {
+      "rows": 208,
+      "sha256": "bf82c29cbecb9ea2479c276f6152ad8ff8f8ba942da299e93d31a7d4c098d796",
+      "style": {
+        "business": 49,
+        "academic": 40,
+        "literary": 40,
+        "informal": 40,
+        "formal": 39
+      },
+      "tone": {
+        "neutral": 40,
+        "aggressive": 40,
+        "urgent": 48,
+        "sarcastic": 40,
+        "friendly": 40
+      }
+    }
+  }
+}

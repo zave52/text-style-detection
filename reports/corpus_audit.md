@@ -4,23 +4,13 @@
 
 | Metric | Count | Note |
 |---|---:|---|
-| Source records | 1000 | Initial input rows |
+| Source records | 998 | Initial input rows |
 | Empty texts removed | 0 | Length = 0 after whitespace |
 | Duplicate rows removed | 0 | Identical texts and labels |
-| Conflicting groups removed | 1 | Identical texts with conflicting labels |
-| Conflicting rows excluded | 2 | Preserved for manual inspection |
-| Label aliases normalized | 200 | `literaly` → `literary` |
+| Conflicting groups removed | 0 | Identical texts with conflicting labels |
+| Conflicting rows excluded | 0 | Preserved for manual inspection |
+| Label aliases normalized | 0 | `literaly` → `literary` |
 | **Clean verified records** | **998** | Ready for splitting and modeling |
-
-## Excluded Conflicting Annotations
-
-Identical normalized texts with conflicting annotations were identified.
-Instead of picking an arbitrary label, all conflicting copies are excluded:
-
-| Text | Style | Tone |
-|---|---|---|
-| `Respond immediately.` | `business` | `urgent` |
-| `Respond immediately.` | `formal` | `urgent` |
 
 ## Clean Corpus Class Distribution
 
