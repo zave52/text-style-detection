@@ -49,15 +49,16 @@ Two modeling approaches are explored and compared across the analysis notebooks.
 
 ```
 text-style-detection/
-├── app/                          # FastAPI backend
+├── app/                          # Core application and ML logic
 │   ├── config.py                 #   Shared labels, paths, seed, input limits, device
-│   ├── main.py                   #   Application entrypoint & route definitions
+│   ├── data.py                   #   Corpus compilation, validation, and audit pipeline
+│   ├── main.py                   #   FastAPI application & route definitions
 │   ├── ml.py                     #   Model loading, preprocessing & inference
 │   └── schemas.py                #   Pydantic request/response schemas
 ├── frontend/
 │   └── app.py                    # Streamlit web interface
 ├── scripts/
-│   └── build_dataset.py          # Script to build dataset.csv from raw text files
+│   └── build_dataset.py          # CLI command to compile and audit the corpus
 ├── dataset/                      # Raw text corpus (style/tone/sample.txt)
 │   ├── academic/
 │   │   ├── aggressive/
@@ -69,8 +70,17 @@ text-style-detection/
 │   ├── formal/
 │   ├── informal/
 │   └── literary/
-├── data/                         # Processed data & saved pipelines
-│   └── dataset.csv               #   Compiled dataset (1 000 samples)
+├── data/                         # Datasets (raw & audited)
+│   ├── dataset.csv               #   Legacy dataset from ML course (1 000 samples)
+│   ├── raw/
+│   │   └── dataset.csv           #   Compiled raw text dataset (1 000 samples)
+│   └── prepared/
+│       ├── dataset.csv           #   Clean, audited dataset (998 samples, sample_id)
+│       ├── excluded_conflicts.csv #  Excluded conflicting records for review
+│       └── corpus_audit.json     #   Audit metadata and summary
+├── reports/
+│   ├── corpus_audit.md           # Human-readable corpus audit report
+│   └── corpus_audit.json         # Machine-readable audit metrics
 ├── saving/                       # Trained TF-IDF + LinearSVC models
 │   ├── style_model.joblib        # (not commited to git)
 │   └── tone_model.joblib         # (not commited to git)
@@ -95,7 +105,17 @@ The dataset contains **1 000 English text samples**, balanced across all classes
 - Raw texts are stored in `dataset/{style}/{tone}/*.txt`
 - The compiled CSV (`data/dataset.csv`) includes both the original `text` and the preprocessed `clean_text`
 
-### Text Preprocessing
+### Corpus Audit & Preparation (Deep Learning)
+
+The deep learning pipeline compiles raw text files and runs an audit (`app/data.py`, `scripts/build_dataset.py`):
+
+1. **Compilation:** Gathers 1,000 raw text samples across all styles and tones in deterministic sorted order.
+2. **Label Normalization:** Corrects legacy typo `literaly` → `literary` on 200 records.
+3. **Conflict Detection:** Identifies exact text duplicates with conflicting labels. Two records with the text `Respond immediately.` (labeled as `business` and `formal`) are excluded and saved to `data/prepared/excluded_conflicts.csv` rather than arbitrarily choosing one label.
+4. **Clean Dataset:** Produces 998 clean verified samples with unique `sample_id` hashes (`data/prepared/dataset.csv`).
+5. **Audit Reports:** Generates `reports/corpus_audit.md` and `reports/corpus_audit.json`.
+
+### Text Preprocessing (Classical ML Baseline)
 
 The preprocessing pipeline (shared between `scripts/build_dataset.py` and `app/ml.py`):
 
