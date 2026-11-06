@@ -40,7 +40,7 @@
   "splits": {
     "train": {
       "rows": 632,
-      "sha256": "bf70d74eb7775b387867c7b94c5cffe74b8488fd711229c1c880f3ce6b29af23",
+      "sha256": "6ce3bb6779f10d46616205a01332425710c69a39e4dbb6ee51f656a2d81e4abd",
       "style": {
         "academic": 128,
         "business": 120,
@@ -58,7 +58,7 @@
     },
     "validation": {
       "rows": 158,
-      "sha256": "a1886267233bdf51109731ce90a3dfc6bf2ac94d2f1fd8c5e10aac64f654a7da",
+      "sha256": "adf6f515f61bd76c049104f45d448e680ec6607eab52cd9c0b9258055a2dfce1",
       "style": {
         "informal": 32,
         "formal": 32,
@@ -76,7 +76,7 @@
     },
     "test": {
       "rows": 208,
-      "sha256": "bf82c29cbecb9ea2479c276f6152ad8ff8f8ba942da299e93d31a7d4c098d796",
+      "sha256": "f02a659569eaf58ca8bfa628f9ab1bbc4293d2a6c40556a6ce6340ddba976439",
       "style": {
         "business": 49,
         "academic": 40,
