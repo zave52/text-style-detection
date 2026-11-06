@@ -54,7 +54,8 @@ text-style-detection/
 │   ├── data.py                   #   Corpus compilation, validation, and audit pipeline
 │   ├── main.py                   #   FastAPI application & route definitions
 │   ├── ml.py                     #   Model loading, preprocessing & inference
-│   └── schemas.py                #   Pydantic request/response schemas
+│   ├── schemas.py                #   Pydantic request/response schemas
+│   └── tokenization.py           #   Tokenization, Vocabulary, TextDataset, and Collator
 ├── frontend/
 │   └── app.py                    # Streamlit web interface
 ├── scripts/
@@ -120,6 +121,7 @@ The deep learning pipeline compiles raw text files and runs an audit (`app/data.
 4. **Clean Dataset:** Produces 998 clean verified samples with unique `sample_id` hashes (`data/prepared/dataset.csv`).
 5. **Audit Reports:** Generates `reports/corpus_audit.md` and `reports/corpus_audit.json`.
 6. **Reproducible Splits & Leakage Prevention:** Groups near-duplicates (word trigram Jaccard ≥ 0.82 or containment ≥ 0.95) into connected components. Applies nested `StratifiedGroupKFold` on combined `style__tone` strata, producing a 632 / 158 / 208 train/val/test split with zero overlap across identifiers, groups, and normalized texts (`data/prepared/manifest.json`, `reports/data_splits.md`).
+7. **Tokenization & Minibatch Loading (`app/tokenization.py`):** Builds frequency-ranked word vocabulary on training texts only with `<pad>` (0) and `<unk>` (1). Preserves punctuation and signals capitalization via `<upper>`. `Collator` performs dynamic padding while ensuring `min_length >= 5` to safeguard CNN convolution operations.
 
 ### Text Preprocessing (Classical ML Baseline)
 
