@@ -135,6 +135,8 @@ class TransformerTokenizer:
     ) -> None:
         from transformers import AutoTokenizer
 
+        if not isinstance(max_length, int) or max_length < 2:
+            raise ValueError("max_length must be an integer of at least two tokens.")
         self.tokenizer = AutoTokenizer.from_pretrained(
             str(source),
             local_files_only=local_only,
@@ -142,9 +144,13 @@ class TransformerTokenizer:
         )
         if self.tokenizer.pad_token_id is None:
             raise ValueError("Configured transformer tokenizer must have a pad_token_id")
+        if max_length > self.tokenizer.model_max_length:
+            raise ValueError("max_length exceeds the tokenizer's supported sequence length.")
+        self.tokenizer.padding_side = "right"
+        self.tokenizer.model_max_length = max_length
         self.pad_id = self.tokenizer.pad_token_id
         self.max_length = max_length
-
+    
     def encode(self, text: str) -> list[int]:
         """Encode text to token IDs with truncation."""
         return self.tokenizer(text, truncation=True, max_length=self.max_length)["input_ids"]
@@ -204,9 +210,15 @@ class Collator:
     so CNN kernel operations never receive inputs smaller than their filter sizes.
     """
 
-    def __init__(self, pad_id: int = VOCAB_PAD_ID, min_length: int = DEFAULT_MIN_LENGTH) -> None:
+    def __init__(
+        self,
+        pad_id: int = VOCAB_PAD_ID,
+        min_length: int = DEFAULT_MIN_LENGTH,
+        include_attention_mask: bool = False,
+    ) -> None:
         self.pad_id = pad_id
         self.min_length = min_length
+        self.include_attention_mask = include_attention_mask
 
     def __call__(
         self,
@@ -244,6 +256,8 @@ class Collator:
             "input_ids": input_ids,
             "lengths": lengths,
         }
+        if self.include_attention_mask:
+            batch["attention_mask"] = input_ids.ne(self.pad_id).long()
 
         first = normalized_rows[0]
         if first[1] is not None:
@@ -262,11 +276,16 @@ def make_loader(
     seed: int = SEED,
 ) -> DataLoader:
     """Construct a reproducible PyTorch DataLoader with dynamic padding."""
+    transformer = tokenizer.kind == "transformer"
     return DataLoader(
         TextDataset(data, tokenizer),
         batch_size=batch_size,
         shuffle=shuffle,
-        collate_fn=Collator(tokenizer.pad_id),
+        collate_fn=Collator(
+            tokenizer.pad_id,
+            min_length=1 if transformer else DEFAULT_MIN_LENGTH,
+            include_attention_mask=transformer,
+        ),
         num_workers=0,
         generator=torch.Generator().manual_seed(seed),
     )
