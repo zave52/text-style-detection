@@ -1,5 +1,3 @@
-"""Neural architectures and the shared model-building interface."""
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -9,17 +7,11 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from app.bilstm import BiLSTMAttention
 from app.config import STYLES, TONES, VOCAB_PAD_ID
 
 
 class TextCNN(nn.Module):
-    """Trainable embeddings, valid convolutions, and two classification heads.
-
-    Inputs: input_ids [B, L] and optional right-padded lengths [B].
-    Outputs: raw style_logits [B, num_styles] and tone_logits [B, num_tones].
-    Only windows containing k real tokens participate in pooling. A branch
-    with no valid window returns zeros, including for entirely padded input.
-    """
 
     def __init__(
         self,
@@ -103,8 +95,10 @@ class TextCNN(nn.Module):
         }
 
 
-MODEL_REGISTRY: dict[str, type[nn.Module]] = {"textcnn": TextCNN}
-
+MODEL_REGISTRY: dict[str, type[nn.Module]] = {
+    "textcnn": TextCNN,
+    "bilstm": BiLSTMAttention,
+}
 
 def build_model(model_name: str, **kwargs: Any) -> nn.Module:
     """Construct a model implementing forward(input_ids, lengths) -> logits dict."""
