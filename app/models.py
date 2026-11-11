@@ -9,6 +9,7 @@ from torch.nn import functional as F
 
 from app.bilstm import BiLSTMAttention
 from app.config import STYLES, TONES, VOCAB_PAD_ID
+from app.distilbert import DistilBERTClassifier
 
 
 class TextCNN(nn.Module):
@@ -98,6 +99,7 @@ class TextCNN(nn.Module):
 MODEL_REGISTRY: dict[str, type[nn.Module]] = {
     "textcnn": TextCNN,
     "bilstm": BiLSTMAttention,
+    "distilbert": DistilBERTClassifier,
 }
 
 def build_model(model_name: str, **kwargs: Any) -> nn.Module:

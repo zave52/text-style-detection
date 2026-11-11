@@ -9,20 +9,40 @@ import torch
 
 from app.config import ARTIFACTS_DIR, MAX_BATCH_SIZE, MAX_INPUT_CHARS, resolve_device
 from app.models import build_model
-from app.tokenization import Vocabulary, make_loader
+from app.tokenization import TransformerTokenizer, Vocabulary, make_loader
+from app.training import model_inputs
 
 
 class NeuralPredictor:
-
     def __init__(self, checkpoint_path: str | Path, device: str | None = None) -> None:
         self.device = torch.device(resolve_device(device))
+        checkpoint_path = Path(checkpoint_path)
+        if checkpoint_path.is_dir():
+            checkpoint_path = checkpoint_path / "best.pt"
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-        self.vocab = Vocabulary(checkpoint["vocab_tokens"], checkpoint["max_length"])
         self.styles = tuple(checkpoint["styles"])
         self.tones = tuple(checkpoint["tones"])
         kwargs = checkpoint["model_kwargs"]
-        if kwargs["vocab_size"] != len(self.vocab) or kwargs["pad_id"] != self.vocab.pad_id:
-            raise ValueError("Checkpoint vocabulary does not match model configuration.")
+        if checkpoint.get("tokenizer_kind") == "transformer":
+            config = kwargs.get("encoder_config")
+            if not config:
+                raise ValueError("A local encoder configuration is required for offline inference.")
+            self.tokenizer = TransformerTokenizer(
+                checkpoint_path.parent / "tokenizer",
+                max_length=checkpoint["max_length"],
+                local_only=True,
+            )
+            if len(self.tokenizer.tokenizer) != config["vocab_size"]:
+                raise ValueError("Saved tokenizer does not match the encoder vocabulary.")
+            if self.tokenizer.pad_id != config["pad_token_id"]:
+                raise ValueError("Saved tokenizer PAD ID does not match the encoder.")
+            if self.tokenizer.max_length > config["max_position_embeddings"]:
+                raise ValueError("Saved sequence length exceeds the encoder limit.")
+        else:
+            self.tokenizer = Vocabulary(checkpoint["vocab_tokens"], checkpoint["max_length"])
+            self.vocab = self.tokenizer  # Compatibility with existing vocabulary-based callers.
+            if kwargs["vocab_size"] != len(self.vocab) or kwargs["pad_id"] != self.vocab.pad_id:
+                raise ValueError("Checkpoint vocabulary does not match model configuration.")
         if kwargs["num_styles"] != len(self.styles) or kwargs["num_tones"] != len(self.tones):
             raise ValueError("Checkpoint class labels do not match classification heads.")
         self.model = build_model(checkpoint["model_name"], **kwargs)
@@ -41,11 +61,9 @@ class NeuralPredictor:
 
         self.model.eval()
         predictions = []
-        for batch in make_loader(texts, self.vocab, batch_size=batch_size):
-            outputs = self.model(
-                input_ids=batch["input_ids"].to(self.device),
-                lengths=batch["lengths"].to(self.device),
-            )
+        for batch in make_loader(texts, self.tokenizer, batch_size=batch_size):
+            inputs = {key: value.to(self.device) for key, value in model_inputs(batch).items()}
+            outputs = self.model(**inputs)
             style_ids = outputs["style_logits"].argmax(dim=1).cpu().tolist()
             tone_ids = outputs["tone_logits"].argmax(dim=1).cpu().tolist()
             predictions.extend(

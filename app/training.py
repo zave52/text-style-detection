@@ -9,6 +9,10 @@ from torch import nn
 from torch.nn import functional as F
 
 
+def model_inputs(batch: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Select model inputs without passing classification labels to forward()."""
+    return {key: batch[key] for key in ("input_ids", "lengths", "attention_mask") if key in batch}
+
 def multitask_loss(
     outputs: Mapping[str, torch.Tensor], batch: Mapping[str, torch.Tensor]
 ) -> torch.Tensor:
@@ -43,7 +47,7 @@ def run_epoch(
             batch = {key: value.to(device) for key, value in raw_batch.items()}
             if optimizer is not None:
                 optimizer.zero_grad(set_to_none=True)
-            outputs = model(input_ids=batch["input_ids"], lengths=batch["lengths"])
+            outputs = model(**model_inputs(batch))
             loss = multitask_loss(outputs, batch)
             if not torch.isfinite(loss):
                 raise FloatingPointError("Non-finite multitask loss.")
