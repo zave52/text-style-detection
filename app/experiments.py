@@ -1,3 +1,5 @@
+# app/experiments.py
+
 from __future__ import annotations
 
 import inspect
@@ -10,8 +12,8 @@ from pathlib import Path
 from typing import Any
 
 import torch
-
 from matplotlib.figure import Figure
+
 from app.config import SEED, STYLES, TONES, resolve_device, set_seed
 from app.data import load_splits
 from app.distilbert import PRETRAINED_NAME
@@ -94,7 +96,8 @@ class EarlyStopping:
 def write_json(path: Path, value: Any) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(
-        json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False), encoding="utf-8"
+        json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False),
+        encoding="utf-8",
     )
     temporary.replace(path)
 
@@ -103,17 +106,35 @@ def plot_history(history: list[dict], destination: Path) -> None:
     figure = Figure(figsize=(14, 4))
     axes = figure.subplots(1, 3)
     epochs = [row["epoch"] for row in history]
+
     for split in ("train", "validation"):
-        axes[0].plot(epochs, [row[split]["loss"] for row in history], label=split)
-        axes[1].plot(epochs, [row[split]["mean_macro_f1"] for row in history], label=split)
+        axes[0].plot(
+            epochs,
+            [row[split]["loss"] for row in history],
+            label=split,
+        )
+        axes[1].plot(
+            epochs,
+            [row[split]["mean_macro_f1"] for row in history],
+            label=split,
+        )
+
     for index in range(len(history[0]["learning_rates"])):
         axes[2].plot(
-            epochs, [row["learning_rates"][index] for row in history], label=f"group {index + 1}"
+            epochs,
+            [row["learning_rates"][index] for row in history],
+            label=f"group {index + 1}",
         )
-    for axis, title in zip(axes, ("Combined loss", "Mean macro F1", "Learning rate"), strict=True):
+
+    for axis, title in zip(
+        axes,
+        ("Combined loss", "Mean macro F1", "Learning rate"),
+        strict=True,
+    ):
         axis.set(title=title, xlabel="Epoch")
         axis.grid(alpha=0.25)
         axis.legend()
+
     axes[1].set_ylim(0, 1.02)
     figure.tight_layout()
     figure.savefig(destination, dpi=160)
@@ -121,17 +142,25 @@ def plot_history(history: list[dict], destination: Path) -> None:
 
 
 def build_optimizer(model, config: TrainConfig) -> torch.optim.AdamW:
-    lr = config.learning_rate or (2e-5 if config.model_name == "distilbert" else 1e-3)
+    lr = config.learning_rate or (
+        2e-5 if config.model_name == "distilbert" else 1e-3
+    )
+
     if config.model_name == "distilbert":
         encoder = list(model.encoder.parameters())
         encoder_ids = {id(parameter) for parameter in encoder}
-        heads = [p for p in model.parameters() if id(p) not in encoder_ids]
+        heads = [
+            parameter
+            for parameter in model.parameters()
+            if id(parameter) not in encoder_ids
+        ]
         groups = [
             {"params": encoder, "lr": lr},
             {"params": heads, "lr": config.head_learning_rate or 1e-4},
         ]
     else:
         groups = [{"params": model.parameters(), "lr": lr}]
+
     return torch.optim.AdamW(groups, weight_decay=config.weight_decay)
 
 
@@ -142,6 +171,7 @@ def save_best(model, tokenizer, kwargs, config, directory, epoch, validation):
         "training_config": asdict(config),
         "selection_metric": "validation.mean_macro_f1",
     }
+
     if tokenizer.kind == "transformer":
         model.save_bundle(directory, tokenizer, metadata=metadata)
     else:
@@ -160,9 +190,18 @@ def save_best(model, tokenizer, kwargs, config, directory, epoch, validation):
         temporary.replace(directory / "best.pt")
 
 
-def fit(model, tokenizer, kwargs, train_loader, val_loader, config, directory, device):
-    """Fit without receiving test data. Restore the strict maximum-F1 checkpoint."""
+def fit(
+    model,
+    tokenizer,
+    kwargs,
+    train_loader,
+    val_loader,
+    config,
+    directory,
+    device,
+):
     optimizer = build_optimizer(model, config)
+
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="max",
@@ -171,58 +210,93 @@ def fit(model, tokenizer, kwargs, train_loader, val_loader, config, directory, d
         threshold=config.min_delta,
         threshold_mode="abs",
     )
+
     write_json(
         directory / "optimizer.json",
         {
             "name": "AdamW",
             "scheduler": "ReduceLROnPlateau",
             "groups": [
-                {k: group[k] for k in ("lr", "weight_decay", "betas", "eps")}
+                {
+                    key: group[key]
+                    for key in ("lr", "weight_decay", "betas", "eps")
+                }
                 for group in optimizer.param_groups
             ],
         },
     )
+
     stopper = EarlyStopping(config.patience, config.min_delta)
     history, best_score, best_epoch = [], -math.inf, 0
+
     options = {
         "device": device,
         "max_grad_norm": config.max_grad_norm,
         "style_weight": config.style_weight,
         "tone_weight": config.tone_weight,
     }
+
     for epoch in range(1, config.epochs + 1):
         rates = [group["lr"] for group in optimizer.param_groups]
-        train = run_epoch(model, train_loader, optimizer=optimizer, **options)
+
+        train = run_epoch(
+            model,
+            train_loader,
+            optimizer=optimizer,
+            **options,
+        )
         validation = run_epoch(model, val_loader, **options)
         score = validation["mean_macro_f1"]
+
         if not math.isfinite(score):
             raise FloatingPointError("Validation mean macro F1 is not finite.")
-        # Even a small improvement must be retained by checkpoint selection.
+
         if score > best_score:
             best_score, best_epoch = score, epoch
-            save_best(model, tokenizer, kwargs, config, directory, epoch, validation)
+            save_best(
+                model,
+                tokenizer,
+                kwargs,
+                config,
+                directory,
+                epoch,
+                validation,
+            )
+
         stop = stopper.update(score)
         scheduler.step(score)
+
         history.append(
             {
                 "epoch": epoch,
                 "train": train,
                 "validation": validation,
                 "learning_rates": rates,
-                "next_learning_rates": [g["lr"] for g in optimizer.param_groups],
+                "next_learning_rates": [
+                    group["lr"] for group in optimizer.param_groups
+                ],
             }
         )
         write_json(directory / "history.json", history)
+
         print(
             f"Epoch {epoch:02d} | loss={train['loss']:.4f} | "
-            f"val_loss={validation['loss']:.4f} | val_mean_macro_f1={score:.4f}",
+            f"val_loss={validation['loss']:.4f} | "
+            f"val_mean_macro_f1={score:.4f}",
             flush=True,
         )
+
         if stop:
             break
-    checkpoint = torch.load(directory / "best.pt", map_location=device, weights_only=True)
+
+    checkpoint = torch.load(
+        directory / "best.pt",
+        map_location=device,
+        weights_only=True,
+    )
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
+
     return history, {
         "best_epoch": best_epoch,
         "best_validation_mean_macro_f1": best_score,
@@ -233,12 +307,14 @@ def fit(model, tokenizer, kwargs, train_loader, val_loader, config, directory, d
 
 def run_experiment(config: TrainConfig) -> Path:
     directory = Path(config.run_dir).resolve()
+
     try:
         directory.mkdir(parents=True, exist_ok=False)
     except FileExistsError as error:
         raise FileExistsError(
             f"Experiment already exists: {directory}. Choose a new --run-dir."
         ) from error
+
     try:
         write_json(directory / "status.json", {"status": "running"})
         write_json(
@@ -251,39 +327,77 @@ def run_experiment(config: TrainConfig) -> Path:
                 "torch": str(torch.__version__),
             },
         )
+
         set_seed(config.seed)
         device = resolve_device(config.device)
         frames, manifest = load_splits()
+
         kwargs = dict(config.model_kwargs)
         kwargs.update(num_styles=len(STYLES), num_tones=len(TONES))
+
         if config.model_name == "distilbert":
             source = kwargs.get("pretrained_name", PRETRAINED_NAME)
             tokenizer = TransformerTokenizer(
-                source, max_length=config.max_length, local_only=kwargs.get("local_only", False)
+                source,
+                max_length=config.max_length,
+                local_only=kwargs.get("local_only", False),
             )
         else:
-            tokenizer = Vocabulary.fit(frames["train"]["text"], max_length=config.max_length)
-            kwargs.update(vocab_size=len(tokenizer), pad_id=tokenizer.pad_id)
+            tokenizer = Vocabulary.fit(
+                frames["train"]["text"],
+                max_length=config.max_length,
+            )
+            kwargs.update(
+                vocab_size=len(tokenizer),
+                pad_id=tokenizer.pad_id,
+            )
             tokenizer.save(directory)
+
         model = build_model(config.model_name, **kwargs).to(device)
+
         bound = inspect.signature(type(model)).bind(**kwargs)
         bound.apply_defaults()
         kwargs = dict(bound.arguments)
+
         if tokenizer.kind == "transformer":
             if config.max_length > model.encoder.config.max_position_embeddings:
-                raise ValueError("Sequence limit exceeds encoder positional embeddings.")
+                raise ValueError(
+                    "Sequence limit exceeds encoder positional embeddings."
+                )
+
         train_loader = make_loader(
-            frames["train"], tokenizer, config.batch_size, shuffle=True, seed=config.seed
+            frames["train"],
+            tokenizer,
+            config.batch_size,
+            shuffle=True,
+            seed=config.seed,
         )
-        val_loader = make_loader(frames["validation"], tokenizer, config.batch_size)
+        val_loader = make_loader(
+            frames["validation"],
+            tokenizer,
+            config.batch_size,
+        )
+
         write_json(directory / "data_manifest.json", manifest)
         write_json(directory / "model_kwargs.json", kwargs)
+
         history, summary = fit(
-            model, tokenizer, kwargs, train_loader, val_loader, config, directory, device
+            model,
+            tokenizer,
+            kwargs,
+            train_loader,
+            val_loader,
+            config,
+            directory,
+            device,
         )
-        plot_history(history, directory / "learning_curves.png")
+
         if config.evaluate_test:
-            test_loader = make_loader(frames["test"], tokenizer, config.batch_size)
+            test_loader = make_loader(
+                frames["test"],
+                tokenizer,
+                config.batch_size,
+            )
             test = run_epoch(
                 model,
                 test_loader,
@@ -293,11 +407,35 @@ def run_experiment(config: TrainConfig) -> Path:
                 max_grad_norm=config.max_grad_norm,
             )
             write_json(directory / "test_metrics.json", test)
+
         write_json(directory / "summary.json", summary)
         write_json(directory / "status.json", {"status": "completed"})
-        print(f"Best epoch: {summary['best_epoch']} | saved to: {directory}", flush=True)
+
+        try:
+            plot_history(history, directory / "learning_curves.png")
+        except Exception as error:
+            print(
+                f"Warning: learning curves were not generated: {error}",
+                flush=True,
+            )
+
+        print(
+            f"Best epoch: {summary['best_epoch']} | saved to: {directory}",
+            flush=True,
+        )
         return directory
+
     except BaseException as error:
-        state = "interrupted" if isinstance(error, KeyboardInterrupt) else "failed"
-        write_json(directory / "status.json", {"status": state, "error_type": type(error).__name__})
+        state = (
+            "interrupted"
+            if isinstance(error, KeyboardInterrupt)
+            else "failed"
+        )
+        write_json(
+            directory / "status.json",
+            {
+                "status": state,
+                "error_type": type(error).__name__,
+            },
+        )
         raise

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.13.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -2260,6 +2260,7 @@ wheels = [
 name = "text-style-detection"
 version = "0.2.0"
 source = { virtual = "." }
+default-groups = ["api", "data", "dev", "notebook", "ui"]
 
 [package.dev-dependencies]
 api = [
@@ -2279,6 +2280,8 @@ data = [
 ]
 dev = [
     { name = "httpx" },
+    { name = "matplotlib" },
+    { name = "pillow" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -2315,6 +2318,8 @@ api = [
 data = [{ name = "pandas", specifier = ">=3.0.3" }]
 dev = [
     { name = "httpx", specifier = ">=0.27" },
+    { name = "matplotlib", specifier = ">=3.9" },
+    { name = "pillow" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "ruff", specifier = ">=0.8" },
 ]
