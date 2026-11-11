@@ -14,6 +14,8 @@ from typing import Any
 import torch
 from matplotlib.figure import Figure
 
+from app.bundles import save_calibrated_bundle
+from app.calibration import fit_temperatures
 from app.config import SEED, STYLES, TONES, resolve_device, set_seed
 from app.data import load_splits
 from app.distilbert import PRETRAINED_NAME
@@ -381,6 +383,7 @@ def run_experiment(config: TrainConfig) -> Path:
         write_json(directory / "data_manifest.json", manifest)
         write_json(directory / "model_kwargs.json", kwargs)
 
+        # fit restores the checkpoint selected by validation mean macro F1.
         history, summary = fit(
             model,
             tokenizer,
@@ -391,6 +394,16 @@ def run_experiment(config: TrainConfig) -> Path:
             directory,
             device,
         )
+
+        # Fit both temperatures using validation predictions only.
+        calibration = fit_temperatures(
+            model,
+            frames["validation"],
+            tokenizer,
+            batch_size=config.batch_size,
+            device=device,
+        )
+        summary["calibration"] = calibration
 
         if config.evaluate_test:
             test_loader = make_loader(
@@ -409,6 +422,10 @@ def run_experiment(config: TrainConfig) -> Path:
             write_json(directory / "test_metrics.json", test)
 
         write_json(directory / "summary.json", summary)
+
+        # Persist calibration in best.pt and checksum all required bundle files.
+        save_calibrated_bundle(directory, calibration)
+
         write_json(directory / "status.json", {"status": "completed"})
 
         try:
@@ -426,11 +443,8 @@ def run_experiment(config: TrainConfig) -> Path:
         return directory
 
     except BaseException as error:
-        state = (
-            "interrupted"
-            if isinstance(error, KeyboardInterrupt)
-            else "failed"
-        )
+        state = "interrupted" if isinstance(error, KeyboardInterrupt) else "failed"
+
         write_json(
             directory / "status.json",
             {
