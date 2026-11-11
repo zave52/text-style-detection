@@ -11,6 +11,7 @@ from typing import Any
 
 import torch
 
+from matplotlib.figure import Figure
 from app.config import SEED, STYLES, TONES, resolve_device, set_seed
 from app.data import load_splits
 from app.distilbert import PRETRAINED_NAME
@@ -37,7 +38,7 @@ class TrainConfig:
     lr_patience: int = 1
     lr_factor: float = 0.5
     seed: int = SEED
-    device: str = "cpu"
+    device: str | None = None
     evaluate_test: bool = False
     model_kwargs: dict[str, Any] = field(default_factory=dict)
 
@@ -99,8 +100,6 @@ def write_json(path: Path, value: Any) -> None:
 
 
 def plot_history(history: list[dict], destination: Path) -> None:
-    from matplotlib.figure import Figure
-
     figure = Figure(figsize=(14, 4))
     axes = figure.subplots(1, 3)
     epochs = [row["epoch"] for row in history]
