@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import inspect
-import json
 import math
 import platform
 from dataclasses import asdict, dataclass, field
@@ -14,8 +13,8 @@ from typing import Any
 import torch
 from matplotlib.figure import Figure
 
-from app.bundles import save_calibrated_bundle
-from app.calibration import fit_temperatures
+from app.bundles import save_calibrated_bundle, write_json
+from app.calibration import evaluate_calibration, fit_temperatures
 from app.config import SEED, STYLES, TONES, resolve_device, set_seed
 from app.data import load_splits
 from app.distilbert import PRETRAINED_NAME
@@ -95,15 +94,6 @@ class EarlyStopping:
         return self.bad_epochs >= self.patience
 
 
-def write_json(path: Path, value: Any) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False),
-        encoding="utf-8",
-    )
-    temporary.replace(path)
-
-
 def plot_history(history: list[dict], destination: Path) -> None:
     figure = Figure(figsize=(14, 4))
     axes = figure.subplots(1, 3)
@@ -144,18 +134,12 @@ def plot_history(history: list[dict], destination: Path) -> None:
 
 
 def build_optimizer(model, config: TrainConfig) -> torch.optim.AdamW:
-    lr = config.learning_rate or (
-        2e-5 if config.model_name == "distilbert" else 1e-3
-    )
+    lr = config.learning_rate or (2e-5 if config.model_name == "distilbert" else 1e-3)
 
     if config.model_name == "distilbert":
         encoder = list(model.encoder.parameters())
         encoder_ids = {id(parameter) for parameter in encoder}
-        heads = [
-            parameter
-            for parameter in model.parameters()
-            if id(parameter) not in encoder_ids
-        ]
+        heads = [parameter for parameter in model.parameters() if id(parameter) not in encoder_ids]
         groups = [
             {"params": encoder, "lr": lr},
             {"params": heads, "lr": config.head_learning_rate or 1e-4},
@@ -219,10 +203,7 @@ def fit(
             "name": "AdamW",
             "scheduler": "ReduceLROnPlateau",
             "groups": [
-                {
-                    key: group[key]
-                    for key in ("lr", "weight_decay", "betas", "eps")
-                }
+                {key: group[key] for key in ("lr", "weight_decay", "betas", "eps")}
                 for group in optimizer.param_groups
             ],
         },
@@ -274,9 +255,7 @@ def fit(
                 "train": train,
                 "validation": validation,
                 "learning_rates": rates,
-                "next_learning_rates": [
-                    group["lr"] for group in optimizer.param_groups
-                ],
+                "next_learning_rates": [group["lr"] for group in optimizer.param_groups],
             }
         )
         write_json(directory / "history.json", history)
@@ -363,9 +342,7 @@ def run_experiment(config: TrainConfig) -> Path:
 
         if tokenizer.kind == "transformer":
             if config.max_length > model.encoder.config.max_position_embeddings:
-                raise ValueError(
-                    "Sequence limit exceeds encoder positional embeddings."
-                )
+                raise ValueError("Sequence limit exceeds encoder positional embeddings.")
 
         train_loader = make_loader(
             frames["train"],
@@ -419,6 +396,15 @@ def run_experiment(config: TrainConfig) -> Path:
                 tone_weight=config.tone_weight,
                 max_grad_norm=config.max_grad_norm,
             )
+            test["calibration"] = evaluate_calibration(
+                model,
+                frames["test"],
+                tokenizer,
+                calibration,
+                batch_size=config.batch_size,
+                device=device,
+            )
+            summary["test_calibration"] = test["calibration"]
             write_json(directory / "test_metrics.json", test)
 
         write_json(directory / "summary.json", summary)

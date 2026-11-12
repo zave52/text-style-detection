@@ -103,10 +103,12 @@ def _required_files(root: Path, model_name: str) -> set[str]:
     required = set(CORE_FILES)
 
     if model_name == "distilbert":
-        required.update({
-            "config.json",
-            "tokenizer/tokenizer_config.json",
-        })
+        required.update(
+            {
+                "config.json",
+                "tokenizer/tokenizer_config.json",
+            }
+        )
 
         tokenizer_files = {
             path.relative_to(root).as_posix()
@@ -124,13 +126,32 @@ def _required_files(root: Path, model_name: str) -> set[str]:
     return required
 
 
+def recover_incomplete_bundle(directory: str | Path) -> Path:
+    """Explicit --force recovery; completed bundles must never be overwritten."""
+    root = bundle_directory(directory)
+    if (root / "bundle.json").exists():
+        raise FileExistsError("This experiment is already calibrated and sealed.")
+
+    checkpoint = torch.load(root / "best.pt", map_location="cpu", weights_only=True)
+    if "calibration" in checkpoint:
+        del checkpoint["calibration"]
+        temporary = root / "best.pt.recovery.tmp"
+        try:
+            torch.save(checkpoint, temporary)
+            temporary.replace(root / "best.pt")
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    # Remove this last: another interrupted recovery can safely retry --force.
+    (root / "calibration.json").unlink(missing_ok=True)
+    return root
+
+
 def save_calibrated_bundle(directory: str | Path, calibration: dict) -> Path:
     root = bundle_directory(directory)
 
     if (root / "bundle.json").exists():
-        raise FileExistsError(
-            "This experiment is already sealed; choose a new run directory."
-        )
+        raise FileExistsError("This experiment is already sealed; choose a new run directory.")
 
     temperatures_from(calibration)
 
@@ -157,10 +178,7 @@ def save_calibrated_bundle(directory: str | Path, calibration: dict) -> Path:
             checkpoint["max_length"],
         ).save(root)
 
-    config = {
-        key: checkpoint[key]
-        for key in ("model_name", "model_kwargs", "max_length")
-    }
+    config = {key: checkpoint[key] for key in ("model_name", "model_kwargs", "max_length")}
     config["tokenizer_kind"] = checkpoint.get("tokenizer_kind", "vocabulary")
 
     write_json(root / "model_config.json", config)
@@ -183,14 +201,11 @@ def save_calibrated_bundle(directory: str | Path, calibration: dict) -> Path:
     finally:
         temporary.unlink(missing_ok=True)
 
-    for optional in ("optimizer.json", "model_kwargs.json"):
+    for optional in ("optimizer.json", "model_kwargs.json", "test_metrics.json"):
         if (root / optional).is_file():
             required.add(optional)
 
-    checksums = {
-        name: sha256(_local_file(root, name))
-        for name in sorted(required)
-    }
+    checksums = {name: sha256(_local_file(root, name)) for name in sorted(required)}
 
     write_json(
         root / "bundle.json",

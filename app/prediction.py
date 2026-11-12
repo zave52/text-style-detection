@@ -26,9 +26,7 @@ class NeuralPredictor:
         if checkpoint_path is None:
             from app.registry import DEFAULT_REGISTRY, ActiveModelRegistry
 
-            checkpoint_path = ActiveModelRegistry(
-                registry_path or DEFAULT_REGISTRY
-            ).resolve()
+            checkpoint_path = ActiveModelRegistry(registry_path or DEFAULT_REGISTRY).resolve()
 
         self.device = torch.device(resolve_device(device))
         checkpoint_path = Path(checkpoint_path).resolve()
@@ -44,9 +42,7 @@ class NeuralPredictor:
                 raise ValueError("Bundle checkpoints must use best.pt.")
             manifest = verify_bundle(root)
         elif (root / "calibration.json").exists():
-            raise ValueError(
-                "Calibrated checkpoint is missing bundle.json integrity information."
-            )
+            raise ValueError("Calibrated checkpoint is missing bundle.json integrity information.")
 
         checkpoint = torch.load(
             checkpoint_path,
@@ -61,9 +57,7 @@ class NeuralPredictor:
 
         if "calibration" in checkpoint:
             if manifest is None:
-                raise ValueError(
-                    "Calibrated checkpoint requires a verified bundle.json."
-                )
+                raise ValueError("Calibrated checkpoint requires a verified bundle.json.")
 
             calibration = read_json(root / "calibration.json")
 
@@ -73,17 +67,9 @@ class NeuralPredictor:
             self.temperatures = temperatures_from(calibration)
 
         if manifest is not None:
-            labels = {
-                key: checkpoint[key]
-                for key in ("styles", "tones")
-            }
-            config = {
-                key: checkpoint[key]
-                for key in ("model_name", "model_kwargs", "max_length")
-            }
-            config["tokenizer_kind"] = checkpoint.get(
-                "tokenizer_kind", "vocabulary"
-            )
+            labels = {key: checkpoint[key] for key in ("styles", "tones")}
+            config = {key: checkpoint[key] for key in ("model_name", "model_kwargs", "max_length")}
+            config["tokenizer_kind"] = checkpoint.get("tokenizer_kind", "vocabulary")
 
             if (
                 "calibration" not in checkpoint
@@ -103,9 +89,7 @@ class NeuralPredictor:
             config = kwargs.get("encoder_config")
 
             if not config:
-                raise ValueError(
-                    "A local encoder configuration is required for offline inference."
-                )
+                raise ValueError("A local encoder configuration is required for offline inference.")
 
             self.tokenizer = TransformerTokenizer(
                 root / "tokenizer",
@@ -126,30 +110,17 @@ class NeuralPredictor:
             )
             self.vocab = self.tokenizer
 
-            if (
-                kwargs["vocab_size"] != len(self.vocab)
-                or kwargs["pad_id"] != self.vocab.pad_id
-            ):
-                raise ValueError(
-                    "Checkpoint vocabulary does not match model configuration."
-                )
+            if kwargs["vocab_size"] != len(self.vocab) or kwargs["pad_id"] != self.vocab.pad_id:
+                raise ValueError("Checkpoint vocabulary does not match model configuration.")
 
             if manifest is not None:
                 saved = Vocabulary.load(root)
 
-                if (
-                    saved.tokens != self.vocab.tokens
-                    or saved.max_length != self.vocab.max_length
-                ):
+                if saved.tokens != self.vocab.tokens or saved.max_length != self.vocab.max_length:
                     raise ValueError("Saved vocabulary does not match the checkpoint.")
 
-        if (
-            kwargs["num_styles"] != len(self.styles)
-            or kwargs["num_tones"] != len(self.tones)
-        ):
-            raise ValueError(
-                "Checkpoint class labels do not match classification heads."
-            )
+        if kwargs["num_styles"] != len(self.styles) or kwargs["num_tones"] != len(self.tones):
+            raise ValueError("Checkpoint class labels do not match classification heads.")
 
         self.model = build_model(checkpoint["model_name"], **kwargs)
         self.model.load_state_dict(checkpoint["state_dict"], strict=True)
@@ -161,10 +132,7 @@ class NeuralPredictor:
         batch_size: int = 32,
     ) -> list[dict[str, str]]:
         return [
-            {
-                task: max(row[task], key=row[task].get)
-                for task in ("style", "tone")
-            }
+            {task: max(row[task], key=row[task].get) for task in ("style", "tone")}
             for row in self.predict_proba(texts, batch_size=batch_size)
         ]
 
@@ -175,34 +143,29 @@ class NeuralPredictor:
         batch_size: int = 32,
     ) -> list[dict[str, dict[str, float]]]:
         if not 1 <= batch_size <= MAX_BATCH_SIZE:
-            raise ValueError(
-                f"batch_size must be between 1 and {MAX_BATCH_SIZE}."
-            )
+            raise ValueError(f"batch_size must be between 1 and {MAX_BATCH_SIZE}.")
 
         texts = [texts] if isinstance(texts, str) else list(texts)
 
         if any(not isinstance(text, str) or not text.strip() for text in texts):
             raise ValueError("Prediction inputs must be non-empty strings.")
         if any(len(text) > MAX_INPUT_CHARS for text in texts):
-            raise ValueError(
-                f"Each text must contain at most {MAX_INPUT_CHARS} characters."
-            )
+            raise ValueError(f"Each text must contain at most {MAX_INPUT_CHARS} characters.")
 
         self.model.eval()
         predictions = []
 
         for batch in make_loader(texts, self.tokenizer, batch_size=batch_size):
-            inputs = {
-                key: value.to(self.device)
-                for key, value in model_inputs(batch).items()
-            }
+            inputs = {key: value.to(self.device) for key, value in model_inputs(batch).items()}
             outputs = self.model(**inputs)
 
             probabilities = {
                 task: torch.softmax(
                     outputs[f"{task}_logits"].double() / self.temperatures[task],
                     dim=1,
-                ).cpu().tolist()
+                )
+                .cpu()
+                .tolist()
                 for task in ("style", "tone")
             }
 
@@ -244,9 +207,7 @@ def main() -> None:
         registry_path=args.registry,
     )
     result = (
-        predictor.predict_proba(args.texts)
-        if args.probabilities
-        else predictor.predict(args.texts)
+        predictor.predict_proba(args.texts) if args.probabilities else predictor.predict(args.texts)
     )
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
