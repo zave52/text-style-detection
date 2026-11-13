@@ -49,6 +49,7 @@ nav:
       - TF-IDF + LinearSVC: modeling/tfidf-linearsvc.md
       - Embeddings + MultiOutput: modeling/embeddings-multioutput.md
       - Results Comparison: modeling/results.md
+      - Classical vs Neural: modeling/legacy-vs-neural.md
   - Application:
       - Architecture: application/architecture.md
       - API Reference: application/api.md
