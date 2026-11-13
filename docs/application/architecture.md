@@ -1,217 +1,84 @@
 # Application Architecture
 
-The application consists of three containerized services orchestrated by Docker Compose, with Nginx as a reverse proxy.
+The application serves one selected neural checkpoint with two classification heads. FastAPI and the CLI use the same calibrated prediction service. Streamlit is an independent HTTP client and has no dependency on the backend Python package.
 
----
-
-## System Overview
+## Runtime boundaries
 
 ```mermaid
 flowchart TB
-    User([User / Browser])
-
-    subgraph Docker["Docker Compose"]
-        Nginx[Nginx<br/>:80]
-
-        subgraph Backend["Backend Container"]
-            FastAPI[FastAPI + Uvicorn<br/>:8000]
-            ML[ML Module<br/>spaCy + scikit-learn]
-            Models[(style_model.joblib<br/>tone_model.joblib)]
-        end
-
-        subgraph Frontend["Frontend Container"]
-            Streamlit[Streamlit<br/>:8501]
-        end
-    end
-
-    User -->|":8000"| Nginx
-    Nginx -->|"/predict, /docs"| FastAPI
-    Nginx -->|"/"| Streamlit
-    Streamlit -->|"HTTP POST"| FastAPI
-    FastAPI --> ML
-    ML --> Models
+    Browser["Browser"] --> Proxy["Nginx"]
+    Proxy -->|"UI and WebSocket"| UI["Streamlit"]
+    Proxy -->|"API paths"| API["FastAPI"]
+    UI -->|"HTTP requests"| API
+    API --> Service["PredictionService"]
+    CLI["Prediction CLI"] --> Service
+    Registry["Active registry"] --> Service
+    Bundle["Verified local bundle"] --> Service
 ```
 
----
+| Component | Runtime responsibility |
+|---|---|
+| `frontend/app.py` | Form requests, display API results and `422` errors |
+| `app/main.py` | API lifecycle, readiness, prediction routes, and failure handling |
+| `app/schemas.py`, `app/input_validation.py` | Strict request and response schemas and shared validation |
+| `app/service.py` | Selected model loading, calibrated results, token information, and warnings |
+| `app/prediction.py` | Local checkpoint reconstruction and prediction CLI |
+| `app/registry.py`, `app/bundles.py` | Selection, pinned checksums, and bundle integrity |
+| `app/tokenization.py` | Saved word vocabulary or transformer tokenizer and padding |
+| Neural model modules | Shared representation plus style and tone output heads |
 
-## Services
+`app/ml.py` and joblib artifacts belong to the historical classical baseline. They are not imported by the current prediction routes. Neural inference applies the saved tokenizer to the supplied text without a spaCy lemmatization step.
 
-### Backend (FastAPI)
+## Model loading lifecycle
 
-The backend is a **FastAPI** application serving predictions via REST endpoints.
+1. FastAPI's lifespan obtains the cached service once per process.
+2. With no `TSD_CHECKPOINT` override, the service resolves the active entry in `TSD_REGISTRY`, defaulting to `artifacts/active_model.json` locally.
+3. Registry pins and bundle checksums are verified, including the saved weights and dataset manifest file.
+4. The loader checks model metadata, label order, output sizes, tokenizer compatibility, and calibration. It reconstructs the architecture, loads weights strictly, and switches to evaluation mode.
+5. DistilBERT is reconstructed from the local encoder configuration and saved tokenizer. Inference does not call a remote pretrained-model download.
+6. Readiness becomes successful. If loading fails, the exception is logged, liveness remains available, and readiness and prediction routes return `503`.
+7. Shutdown releases the service and clears the process cache.
 
-| Property | Value |
-|----------|-------|
-| Framework | FastAPI |
-| Server | Uvicorn |
-| Port | 8000 (internal) |
-| Base image | `python:3.13-slim-trixie` |
+The trained bundle records training provenance and data fingerprints. Serving messages does not require the training dataset to be mounted; the separate evaluation command additionally checks compatibility against the actual prepared dataset.
 
-**Lifecycle:**
+Selection is persistent but loaded instances are pinned in memory. Select a different bundle on the host and restart the API to apply it. The public service requires a complete calibrated bundle, not a standalone legacy `best.pt`.
 
-1. On startup, the `lifespan` context manager loads spaCy and both joblib models into memory
-2. Each request preprocesses the input text (lemmatization via spaCy) and runs model inference
-3. On shutdown, models are cleared from memory
+## Prediction flow
 
-**Key files:**
+The API validates the complete request before tokenization and inference. It accepts a single message or a batch, preserves order and duplicate messages, and rejects invalid input with `422`.
 
-| File | Responsibility |
-|------|---------------|
-| `app/main.py` | FastAPI app, route definitions, lifespan management |
-| `app/ml.py` | Model loading, text preprocessing, prediction functions |
-| `app/schemas.py` | Pydantic models for request/response validation |
+The saved tokenizer encodes each message with the model's sequence-length limit. A lock protects shared tokenizer state and inference from concurrent calls. The model produces separate style and tone logits, and the service applies each task's saved temperature before softmax.
 
-### Frontend (Streamlit)
+All adapters expose class scores, maximum-probability labels and confidence, character and token counts, unknown-token statistics, and structured warnings. Batch responses wrap the same prediction objects in `results`. The compatibility style/tone endpoints also return the complete object; Streamlit chooses which task to display.
 
-The frontend is a **Streamlit** application providing an interactive web UI.
+Unfamiliar-input and uncertainty checks produce warnings without changing model outputs. The checks are documented in the [API reference](api.md).
 
-| Property | Value |
-|----------|-------|
-| Framework | Streamlit |
-| Port | 8501 (internal) |
-| Base image | `python:3.13-alpine3.23` |
+## Containers and model storage
 
-Features:
+| Service | Files and dependencies | Network |
+|---|---|---|
+| Backend | `app/`, `api` dependency group, externally mounted model artifacts | Internal port 8000 |
+| Frontend | `frontend/`, `.streamlit/`, `ui` dependency group | Internal port 8501 |
+| Nginx | `nginx/nginx.conf` | Host port 8000 → container port 80 |
 
-- Text area for user input
-- Three action buttons: "Predict Both", "Style Only", "Tone Only"
-- Communicates with the backend via HTTP POST requests
-- Backend URL configurable via `API_URL` environment variable
+Both Python images use `python:3.13-slim-trixie` and install locked dependencies through uv. The frontend reads `API_URL` from the environment and does not import `app.*`, torch, transformers, or spaCy.
 
-### Nginx (Reverse Proxy)
+Compose bind-mounts host `./artifacts` at `/app/artifacts` with `read_only: true`. The mount contains both `active_model.json` and the selected full experiment directory. Keeping the directory layout under one artifacts root preserves relative registry paths when moving from Windows or another host into the Linux container.
 
-Nginx routes external traffic to the appropriate internal service.
+The backend image neither copies trained weights nor requires `saving/`. `.dockerignore` excludes model artifacts from the build context. Its `HF_HUB_OFFLINE=1` environment setting prevents Hugging Face network access during serving.
 
-| Property | Value |
-|----------|-------|
-| Image | `nginx:1.31-alpine3.23` |
-| External port | 8000 |
-| Internal port | 80 |
+The backend Dockerfile defines a standard-library HTTP healthcheck on `/health/ready`. Compose waits for this healthcheck before starting the frontend and Nginx. Missing model files therefore surface as an unhealthy backend and a startup dependency failure instead of an apparently ready deployment.
 
-**Routing rules:**
+## Proxy routes
 
-| Path | Proxied To | Service |
-|------|-----------|---------|
-| `/predict` | `http://backend:8000/predict` | FastAPI |
-| `/docs` | `http://backend:8000/docs` | FastAPI (Swagger UI) |
-| `/openapi.json` | `http://backend:8000/openapi.json` | FastAPI (OpenAPI schema) |
-| `/` (everything else) | `http://frontend:8501` | Streamlit |
+| Path | Destination |
+|---|---|
+| `/predict`, `/predict/batch`, `/predict/style`, `/predict/tone` | Backend prediction routes |
+| `/health/live`, `/health/ready` | Backend health routes |
+| `/model/info` | Backend model information |
+| `/docs`, `/openapi.json` | Backend API documentation |
+| Other paths | Streamlit, including WebSocket traffic |
 
-WebSocket upgrade headers are configured for the Streamlit proxy to support its real-time communication:
+Streamlit sends server-side requests directly to `http://backend:8000` in Compose. Browser and external API traffic use Nginx. Prediction proxy reads allow up to 120 seconds; clients still need to handle timeouts and `503` responses.
 
-```nginx
-proxy_http_version 1.1;
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection "upgrade";
-```
-
----
-
-## Docker Configuration
-
-### docker-compose.yml
-
-```yaml
-services:
-  backend:
-    build:
-      context: .
-      dockerfile: backend.Dockerfile
-    networks:
-      - style-tone-classification
-
-  frontend:
-    build:
-      context: .
-      dockerfile: frontend.Dockerfile
-    environment:
-      - API_URL=http://backend:8000
-    networks:
-      - style-tone-classification
-
-  nginx:
-    image: nginx:1.31-alpine3.23
-    ports:
-      - "8000:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - backend
-      - frontend
-    networks:
-      - style-tone-classification
-
-networks:
-  style-tone-classification:
-```
-
-### Network
-
-All services communicate over a dedicated Docker network (`style-tone-classification`). Only Nginx exposes a port to the host (`8000:80`).
-
-### Backend Dockerfile
-
-```dockerfile
-FROM python:3.13-slim-trixie
-
-WORKDIR /app
-
-RUN pip install --no-cache-dir fastapi joblib uvicorn scikit-learn spacy
-
-COPY app .
-COPY saving ./saving
-
-EXPOSE 8000
-
-ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-!!! note
-    The spaCy `en_core_web_sm` model is downloaded automatically at startup by the `load_models()` function in `ml.py` if it is not already available.
-
-### Frontend Dockerfile
-
-```dockerfile
-FROM python:3.13-alpine3.23
-
-WORKDIR /frontend
-
-RUN pip install --no-cache-dir streamlit
-
-COPY frontend .
-
-EXPOSE 8501
-
-ENTRYPOINT ["streamlit", "run", "app.py", "--server.address=0.0.0.0"]
-```
-
----
-
-## Request Flow
-
-A typical prediction request flows through the system as follows:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant Nginx
-    participant Streamlit
-    participant FastAPI
-    participant ML Module
-
-    User->>Nginx: GET / (browser)
-    Nginx->>Streamlit: proxy
-    Streamlit-->>User: render UI
-
-    User->>Streamlit: enter text + click "Predict Both"
-    Streamlit->>Nginx: POST /predict {"text": "..."}
-    Nginx->>FastAPI: proxy POST /predict
-    FastAPI->>ML Module: predict_both(text)
-    ML Module->>ML Module: preprocess_text(text)
-    ML Module->>ML Module: style_model.predict()
-    ML Module->>ML Module: tone_model.predict()
-    ML Module-->>FastAPI: ("academic", "neutral")
-    FastAPI-->>Nginx: {"style": "academic", "tone": "neutral"}
-    Nginx-->>Streamlit: response
-    Streamlit-->>User: display results
-```
+See [deployment](deployment.md) for commands and [shared prediction service](prediction-service.md) for the reusable Python interface.
