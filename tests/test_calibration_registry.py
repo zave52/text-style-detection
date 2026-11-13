@@ -32,10 +32,7 @@ def frames():
             "tone": ["urgent", "friendly", "neutral"],
         }
     )
-    return {
-        split: frame.copy()
-        for split in ("train", "validation", "test")
-    }
+    return {split: frame.copy() for split in ("train", "validation", "test")}
 
 
 def test_scalar_fit_has_known_optimum_and_preserves_predictions():
@@ -44,9 +41,7 @@ def test_scalar_fit_has_known_optimum_and_preserves_predictions():
 
     result = fit_temperature(logits, labels)
 
-    assert result["temperature"] == pytest.approx(
-        4 / torch.log(torch.tensor(3.0)).item()
-    )
+    assert result["temperature"] == pytest.approx(4 / torch.log(torch.tensor(3.0)).item())
     assert result["nll_after"] < result["nll_before"]
     assert torch.equal(
         logits.argmax(1),
@@ -126,10 +121,7 @@ def local_encoder(tmp_path):
     from tokenizers.processors import TemplateProcessing
     from transformers import DistilBertConfig, DistilBertModel, PreTrainedTokenizerFast
 
-    words = (
-        "[PAD] [UNK] [CLS] [SEP] [MASK] "
-        "Hello hello world please send report now !"
-    ).split()
+    words = ("[PAD] [UNK] [CLS] [SEP] [MASK] Hello hello world please send report now !").split()
 
     backend = Tokenizer(
         WordPiece(
@@ -232,9 +224,7 @@ def test_all_architectures_preserve_logits_probabilities_labels_and_offline_load
         checkpoint = torch.load(root / "best.pt", weights_only=True)
 
         assert manifest["weights_sha256"] == sha256(root / "best.pt")
-        assert manifest["dataset_manifest_sha256"] == sha256(
-            root / "data_manifest.json"
-        )
+        assert manifest["dataset_manifest_sha256"] == sha256(root / "data_manifest.json")
         assert checkpoint["calibration"]["samples"] == 3
         assert checkpoint["calibration"] == read_json(root / "calibration.json")
         assert read_json(root / "labels.json") == {
@@ -278,9 +268,7 @@ def test_all_architectures_preserve_logits_probabilities_labels_and_offline_load
             assert list(expected[name][0][task].values()) == pytest.approx(
                 probabilities[0].tolist()
             )
-            assert selected.predict(texts)[0][task] == labels[
-                before[f"{task}_logits"].argmax(1)[0]
-            ]
+            assert selected.predict(texts)[0][task] == labels[before[f"{task}_logits"].argmax(1)[0]]
 
     moved = tmp_path / "moved"
     shutil.copytree(calibrated_runs["distilbert"], moved)
@@ -427,10 +415,7 @@ def test_calibration_cli_reuses_weights_and_only_encodes_validation(
 
     root = calibrated_runs["textcnn"]
     checkpoint = torch.load(root / "best.pt", weights_only=True)
-    before = {
-        key: value.clone()
-        for key, value in checkpoint["state_dict"].items()
-    }
+    before = {key: value.clone() for key, value in checkpoint["state_dict"].items()}
 
     checkpoint.pop("calibration")
     torch.save(checkpoint, root / "best.pt")
@@ -517,7 +502,179 @@ def test_selection_cli_switches_architectures(
 
         cli.main()
 
-        assert (
-            NeuralPredictor(registry_path=registry_path).model_name
-            == architecture
+        assert NeuralPredictor(registry_path=registry_path).model_name == architecture
+
+
+@pytest.mark.parametrize("failure_at", ["labels.json", "bundle.json"])
+def test_force_recovers_interrupted_bundle(calibrated_runs, monkeypatch, failure_at):
+    import app.bundles as bundles
+    import scripts.calibrate as cli
+
+    root = calibrated_runs["textcnn"]
+    checkpoint = torch.load(root / "best.pt", weights_only=True)
+    calibration = checkpoint.pop("calibration")
+    before = {key: value.clone() for key, value in checkpoint["state_dict"].items()}
+    (root / "bundle.json").unlink()
+    (root / "calibration.json").unlink()
+    torch.save(checkpoint, root / "best.pt")
+    original_write = bundles.write_json
+
+    def interrupted_write(path, value):
+        if path.name == failure_at:
+            raise OSError("Simulated interrupted save")
+        original_write(path, value)
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(bundles, "write_json", interrupted_write)
+        with pytest.raises(OSError, match="interrupted save"):
+            bundles.save_calibrated_bundle(root, calibration)
+
+    assert (root / "calibration.json").is_file()
+    assert not (root / "bundle.json").exists()
+    with pytest.raises(ValueError, match="missing bundle.json"):
+        NeuralPredictor(root)
+
+    monkeypatch.setattr(cli, "load_splits", lambda: (frames(), {"seed": 42}))
+    arguments = ["calibrate", "--checkpoint", str(root), "--device", "cpu"]
+    monkeypatch.setattr("sys.argv", arguments)
+    with pytest.raises(ValueError, match="--force"):
+        cli.main()
+
+    monkeypatch.setattr("sys.argv", [*arguments, "--force"])
+    cli.main()
+    verify_bundle(root)
+    after = torch.load(root / "best.pt", weights_only=True)["state_dict"]
+    assert all(torch.equal(before[key], after[key]) for key in before)
+    assert NeuralPredictor(root).predict("Hello world!")
+
+
+def test_force_never_overwrites_completed_bundle(calibrated_runs, monkeypatch):
+    import scripts.calibrate as cli
+
+    root = calibrated_runs["textcnn"]
+    before = {path: sha256(path) for path in root.rglob("*") if path.is_file()}
+    monkeypatch.setattr(cli, "load_splits", lambda: pytest.fail("Read completed experiment"))
+    monkeypatch.setattr("sys.argv", ["calibrate", "--checkpoint", str(root), "--force"])
+    with pytest.raises(FileExistsError, match="already calibrated"):
+        cli.main()
+    assert all(sha256(path) == checksum for path, checksum in before.items())
+
+
+def test_failed_recovery_is_retryable(calibrated_runs, monkeypatch):
+    from app.bundles import recover_incomplete_bundle
+
+    root = calibrated_runs["textcnn"]
+    (root / "bundle.json").unlink()
+    before = sha256(root / "best.pt")
+
+    def broken_save(*args, **kwargs):
+        raise OSError("Interrupted recovery")
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(torch, "save", broken_save)
+        with pytest.raises(OSError, match="Interrupted recovery"):
+            recover_incomplete_bundle(root)
+
+    assert sha256(root / "best.pt") == before
+    assert (root / "calibration.json").exists()
+    recover_incomplete_bundle(root)
+    assert not (root / "calibration.json").exists()
+    assert NeuralPredictor(root).temperatures == {"style": 1.0, "tone": 1.0}
+
+
+def test_force_checks_dataset_before_recovery(calibrated_runs, monkeypatch):
+    import scripts.calibrate as cli
+
+    root = calibrated_runs["textcnn"]
+    (root / "bundle.json").unlink()
+    before = sha256(root / "best.pt")
+    monkeypatch.setattr(cli, "load_splits", lambda: (frames(), {"seed": 99}))
+    monkeypatch.setattr("sys.argv", ["calibrate", "--checkpoint", str(root), "--force"])
+    with pytest.raises(ValueError, match="saved manifest"):
+        cli.main()
+    assert sha256(root / "best.pt") == before
+    assert (root / "calibration.json").exists()
+
+
+def test_test_nll_uses_fixed_temperatures_and_can_get_worse(monkeypatch):
+    import app.calibration as calibration_module
+
+    frame = pd.DataFrame(
+        {
+            "text": ["Hello world!", "please send report", "Hello!"],
+            "style": [STYLES[0]] * 3,
+            "tone": [TONES[0]] * 3,
+        }
+    )
+    tokenizer = Vocabulary.fit(frame["text"])
+    calibration = {
+        "method": "temperature_scaling",
+        "split": "validation",
+        "style": {"temperature": 3.0},
+        "tone": {"temperature": 0.5},
+    }
+    saved_calibration = json.loads(json.dumps(calibration))
+
+    class Fixed(nn.Module):
+        def forward(self, input_ids, lengths):
+            assert not self.training and not torch.is_grad_enabled()
+            logits = torch.tensor([4.0, 0.0, 0.0, 0.0, 0.0]).expand(len(input_ids), -1)
+            return {"style_logits": logits, "tone_logits": logits * 2}
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Temperature fitting must never run on test data")
+
+    monkeypatch.setattr(calibration_module, "fit_temperature", forbidden)
+    model = Fixed().train()
+    metrics = calibration_module.evaluate_calibration(
+        model, frame, tokenizer, calibration, batch_size=2
+    )
+    assert model.training
+    assert calibration == saved_calibration
+    assert metrics["split"] == "test" and metrics["samples"] == 3
+    assert metrics["style"]["nll_after"] > metrics["style"]["nll_before"]
+    assert metrics["tone"]["nll_after"] < metrics["tone"]["nll_before"]
+    logits = torch.tensor([[4.0, 0.0, 0.0, 0.0, 0.0]] * 3, dtype=torch.double)
+    targets = torch.zeros(3, dtype=torch.long)
+    for task, factor in (("style", 1), ("tone", 2)):
+        expected_before = torch.nn.functional.cross_entropy(logits * factor, targets).item()
+        expected_after = torch.nn.functional.cross_entropy(
+            logits * factor / calibration[task]["temperature"], targets
+        ).item()
+        assert metrics[task]["nll_before"] == pytest.approx(expected_before)
+        assert metrics[task]["nll_after"] == pytest.approx(expected_after)
+
+
+@pytest.mark.parametrize("evaluate_test", [False, True])
+def test_pipeline_records_held_out_nll_only_when_requested(tmp_path, monkeypatch, evaluate_test):
+    data = frames()
+    monkeypatch.setattr(experiments, "load_splits", lambda: (data, {"seed": 42}))
+    original = experiments.evaluate_calibration
+    calls = []
+
+    def capture(model, test_data, tokenizer, calibration, **kwargs):
+        assert test_data is data["test"]
+        calls.append("test")
+        return original(model, test_data, tokenizer, calibration, **kwargs)
+
+    monkeypatch.setattr(experiments, "evaluate_calibration", capture)
+    root = run_experiment(
+        TrainConfig(
+            "textcnn",
+            str(tmp_path / "run"),
+            epochs=1,
+            evaluate_test=evaluate_test,
+            model_kwargs={"embedding_dim": 4, "num_filters": 2},
         )
+    )
+    summary = read_json(root / "summary.json")
+    assert calls == (["test"] if evaluate_test else [])
+    assert ("test_calibration" in summary) == evaluate_test
+    if evaluate_test:
+        metrics = read_json(root / "test_metrics.json")
+        calibrated = metrics["calibration"]
+        assert calibrated == summary["test_calibration"]
+        for task in ("style", "tone"):
+            assert calibrated[task]["temperature"] == summary["calibration"][task]["temperature"]
+            assert calibrated[task]["nll_before"] == pytest.approx(metrics[f"{task}_loss"])
+        assert "test_metrics.json" in verify_bundle(root)["files"]

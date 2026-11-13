@@ -65,15 +65,15 @@ def fit_temperature(logits: torch.Tensor, labels: torch.Tensor) -> dict[str, flo
 
 
 @torch.no_grad()
-def fit_temperatures(
+def _collect_predictions(
     model,
-    validation_data,
+    data,
     tokenizer,
     *,
     batch_size: int = 32,
     device: str | torch.device = "cpu",
-) -> dict:
-    """Collect frozen, eval-mode predictions on validation data only."""
+) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+    """Collect eval-mode logits and labels without changing weights or gradients."""
     logits = {task: [] for task in ("style", "tone")}
     labels = {task: [] for task in logits}
 
@@ -81,11 +81,8 @@ def fit_temperatures(
     model.eval()
 
     try:
-        for batch in make_loader(validation_data, tokenizer, batch_size=batch_size):
-            inputs = {
-                key: value.to(device)
-                for key, value in model_inputs(batch).items()
-            }
+        for batch in make_loader(data, tokenizer, batch_size=batch_size):
+            inputs = {key: value.to(device) for key, value in model_inputs(batch).items()}
             outputs = model(**inputs)
 
             for task in logits:
@@ -95,7 +92,26 @@ def fit_temperatures(
         model.train(was_training)
 
     if not logits["style"]:
-        raise ValueError("Cannot calibrate on an empty validation split.")
+        raise ValueError("Cannot collect predictions from an empty split.")
+
+    return (
+        {task: torch.cat(values).double() for task, values in logits.items()},
+        {task: torch.cat(values) for task, values in labels.items()},
+    )
+
+
+def fit_temperatures(
+    model,
+    validation_data,
+    tokenizer,
+    *,
+    batch_size: int = 32,
+    device: str | torch.device = "cpu",
+) -> dict:
+    """Fit temperatures using validation predictions only."""
+    logits, labels = _collect_predictions(
+        model, validation_data, tokenizer, batch_size=batch_size, device=device
+    )
 
     result = {
         "method": "temperature_scaling",
@@ -103,12 +119,36 @@ def fit_temperatures(
     }
 
     for task in logits:
-        result[task] = fit_temperature(
-            torch.cat(logits[task]),
-            torch.cat(labels[task]),
-        )
+        result[task] = fit_temperature(logits[task], labels[task])
 
-    result["samples"] = sum(len(batch) for batch in labels["style"])
+    result["samples"] = len(labels["style"])
+    return result
+
+
+@torch.no_grad()
+def evaluate_calibration(
+    model,
+    test_data,
+    tokenizer,
+    calibration: dict,
+    *,
+    batch_size: int = 32,
+    device: str | torch.device = "cpu",
+) -> dict:
+    """Measure held-out NLL using fixed validation temperatures; never refit."""
+    temperatures = temperatures_from(calibration)
+    logits, labels = _collect_predictions(
+        model, test_data, tokenizer, batch_size=batch_size, device=device
+    )
+    result = {"split": "test", "samples": len(labels["style"])}
+    for task in ("style", "tone"):
+        result[task] = {
+            "temperature": temperatures[task],
+            "nll_before": F.cross_entropy(logits[task], labels[task]).item(),
+            "nll_after": F.cross_entropy(logits[task] / temperatures[task], labels[task]).item(),
+        }
+    result["mean_nll_before"] = sum(result[task]["nll_before"] for task in logits) / 2
+    result["mean_nll_after"] = sum(result[task]["nll_after"] for task in logits) / 2
     return result
 
 
@@ -119,15 +159,9 @@ def temperatures_from(calibration: dict) -> dict[str, float]:
     ):
         raise ValueError("Expected temperature scaling fitted on validation predictions.")
 
-    temperatures = {
-        task: float(calibration[task]["temperature"])
-        for task in ("style", "tone")
-    }
+    temperatures = {task: float(calibration[task]["temperature"]) for task in ("style", "tone")}
 
-    if any(
-        not math.isfinite(value) or value <= 0
-        for value in temperatures.values()
-    ):
+    if any(not math.isfinite(value) or value <= 0 for value in temperatures.values()):
         raise ValueError("Temperatures must be finite and strictly positive.")
 
     return temperatures

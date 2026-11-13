@@ -73,9 +73,7 @@ class ActiveModelRegistry:
         active = registry.get("active")
 
         if active not in registry["models"]:
-            raise FileNotFoundError(
-                "No active model. Run python -m scripts.select_model first."
-            )
+            raise FileNotFoundError("No active model. Run python -m scripts.select_model first.")
 
         entry = registry["models"][active]
         root = (self.path.parent / entry["directory"]).resolve()
