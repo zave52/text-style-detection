@@ -63,7 +63,9 @@ uv run streamlit run frontend/app.py
 
 The compatibility paths return the full shared response; the interface displays only the requested task. Invalid request bodies return `422`. An unavailable model or failed inference returns `503`; loading failures are logged on the server without exposing filesystem paths in the response.
 
-The Streamlit single-message view displays labels, confidence, class scores, token counts, and warnings. The batch view accepts one message per line, ignoring blank lines, and displays one result per submitted message. Both views consume API responses and can display the complete JSON result.
+The Streamlit single-message view displays labels, confidence, class scores, token counts, and warnings. The batch view accepts one message per line, ignoring blank lines, and displays one result per submitted message. Both views consume API responses and can display the complete JSON result. The frontend reads `API_URL` from the environment and runs with only the `ui` dependency group; it does not import `app.*` or duplicate input validation. Invalid requests are sent to the API and its `422` details are displayed.
+
+For Compose deployment, keep the selected registry and complete bundle under host `artifacts/`. The backend mounts this tree read-only and reports model readiness through `/health/ready`; its dependents wait for the image's healthcheck. See the [deployment guide](deployment.md).
 
 ## Prediction Fields
 
@@ -101,9 +103,9 @@ Unfamiliar-input checks are heuristics, not a language detector or a complete ou
 ## Verification
 
 ```bash
-uv run ruff format --check app/input_validation.py app/service.py app/prediction.py app/schemas.py app/main.py frontend/app.py tests/test_prediction_service.py
-uv run ruff check app/input_validation.py app/service.py app/prediction.py app/schemas.py app/main.py frontend/app.py tests/test_prediction_service.py
+uv run ruff format --check .
+uv run ruff check .
 uv run pytest -q
 ```
 
-Regression tests cover all three architectures, offline loading, checksum failures, saved temperature application, exact single/batch/CLI/API result parity, request limits, warnings, process caching, readiness failures, and the Streamlit interface.
+Regression tests cover all three architectures, offline loading from read-only artifacts, checksum failures, saved temperature application, exact single/batch/CLI/API result parity, request limits, warnings, process caching, readiness failures, API validation errors in Streamlit, and standalone frontend startup without backend modules.

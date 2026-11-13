@@ -1,17 +1,11 @@
 """Streamlit interface consuming the shared prediction response contract."""
-import sys
-from pathlib import Path
+
+import os
 
 import requests
 import streamlit as st
 
-project_root = str(Path(__file__).resolve().parents[1])
-if project_root in sys.path:
-    sys.path.remove(project_root)
-sys.path.insert(0, project_root)
-
-from app.config import API_URL, MAX_BATCH_SIZE, MAX_INPUT_CHARS
-from app.input_validation import PredictionInputError, validate_batch, validate_text
+API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
 
 st.set_page_config(page_title="Style & Tone Detector", page_icon="🎭")
 st.title("🎭 Text Style & Tone Detection")
@@ -20,7 +14,7 @@ st.markdown("Analyze English messages with the selected model.")
 
 def request_prediction(endpoint: str, payload: dict) -> dict | None:
     try:
-        response = requests.post(f"{API_URL.rstrip('/')}{endpoint}", json=payload, timeout=(5, 120))
+        response = requests.post(f"{API_URL}{endpoint}", json=payload, timeout=(5, 120))
         if not response.ok:
             detail = response.json().get("detail", "Prediction request failed.")
             if isinstance(detail, list):
@@ -60,7 +54,7 @@ def display_prediction(result: dict, tasks: tuple[str, ...]) -> None:
 
 single_tab, batch_tab = st.tabs(["Single message", "Batch messages"])
 with single_tab:
-    text = st.text_area("Your text", height=150, max_chars=MAX_INPUT_CHARS, key="single_text")
+    text = st.text_area("Your text", height=150, key="single_text")
     selected = None
     for column, task, title in zip(
         st.columns(3),
@@ -71,47 +65,33 @@ with single_tab:
         if column.button(title, key=task):
             selected = task
     if selected:
-        try:
-            validate_text(text)
-        except PredictionInputError as error:
-            st.warning(str(error))
-        else:
-            endpoint = "/predict" if selected == "both" else f"/predict/{selected}"
-            with st.spinner("Analyzing..."):
-                prediction = request_prediction(endpoint, {"text": text})
-            if prediction is not None:
-                display_prediction(
-                    prediction, ("style", "tone") if selected == "both" else (selected,)
-                )
+        endpoint = "/predict" if selected == "both" else f"/predict/{selected}"
+        with st.spinner("Analyzing..."):
+            prediction = request_prediction(endpoint, {"text": text})
+        if prediction is not None:
+            display_prediction(prediction, ("style", "tone") if selected == "both" else (selected,))
 
 with batch_tab:
-    st.caption(f"One message per line, up to {MAX_BATCH_SIZE} messages. Blank lines are ignored.")
+    st.caption("One message per line. Blank lines are ignored. The API validates input limits.")
     batch_text = st.text_area("Messages", height=200, key="batch_text")
     if st.button("Predict batch", key="batch"):
         messages = [line for line in batch_text.splitlines() if line.strip()]
-        try:
-            validate_batch(messages)
-        except PredictionInputError as error:
-            st.warning(str(error))
-        else:
-            with st.spinner("Analyzing messages..."):
-                response = request_prediction("/predict/batch", {"texts": messages})
-            if response is not None:
-                st.dataframe(
-                    [
-                        {
-                            "text": text,
-                            "style": row["style"],
-                            "tone": row["tone"],
-                            "style_confidence": row["style_confidence"],
-                            "tone_confidence": row["tone_confidence"],
-                            "warnings": "; ".join(
-                                warning["message"] for warning in row["warnings"]
-                            ),
-                        }
-                        for text, row in zip(messages, response["results"], strict=True)
-                    ],
-                    hide_index=True,
-                )
-                with st.expander("Full batch prediction details"):
-                    st.json(response)
+        with st.spinner("Analyzing messages..."):
+            response = request_prediction("/predict/batch", {"texts": messages})
+        if response is not None:
+            st.dataframe(
+                [
+                    {
+                        "text": text,
+                        "style": row["style"],
+                        "tone": row["tone"],
+                        "style_confidence": row["style_confidence"],
+                        "tone_confidence": row["tone_confidence"],
+                        "warnings": "; ".join(warning["message"] for warning in row["warnings"]),
+                    }
+                    for text, row in zip(messages, response["results"], strict=True)
+                ],
+                hide_index=True,
+            )
+            with st.expander("Full batch prediction details"):
+                st.json(response)

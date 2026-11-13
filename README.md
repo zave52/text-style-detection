@@ -1,348 +1,156 @@
-# 🎭 Text Style & Tone Detection
+# Text Style & Tone Detection
 
-A machine learning system for classifying the **writing style** and **emotional tone** of English text. The project includes an end-to-end ML pipeline (EDA → modeling → evaluation), a FastAPI inference backend, and a Streamlit web interface — all containerized with Docker Compose.
+Classify the writing style and emotional tone of English messages with **TextCNN, BiLSTM with attention, or DistilBERT**. A shared prediction service loads a selected, calibrated neural checkpoint and provides the same response through Python, the CLI, FastAPI, and Streamlit.
 
-> **Live Demo:** [ec2-16-171-112-170.eu-north-1.compute.amazonaws.com](http://ec2-16-171-112-170.eu-north-1.compute.amazonaws.com)
->
-> *Note: The demo is hosted on an AWS EC2 instance and may be unavailable at the time of viewing.*
+The original TF-IDF and spaCy classifiers remain documented as historical baselines. The application serves the selected neural architecture; it does not load `saving/*.joblib` or run spaCy preprocessing during prediction.
 
-## Table of Contents
+## Classification scope
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Project Structure](#project-structure)
-- [Dataset](#dataset)
-- [Models](#models)
-  - [Approach 1 — TF-IDF + LinearSVC](#approach-1--tf-idf--linearsvc)
-  - [Approach 2 — spaCy Embeddings + MultiOutputClassifier](#approach-2--spacy-embeddings--multioutputclassifier)
-- [Results](#results)
-- [Documentation](#documentation)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Local Development](#local-development)
-  - [Docker Deployment](#docker-deployment)
-- [API Reference](#api-reference)
-- [Tech Stack](#tech-stack)
-- [License](#license)
+| Property | Values |
+|---|---|
+| Styles | `academic`, `business`, `formal`, `informal`, `literary` |
+| Tones | `aggressive`, `friendly`, `neutral`, `sarcastic`, `urgent` |
+| Language | English |
+| Request limits | 1–2000 characters per non-whitespace message; 1–64 messages per batch |
 
-## Overview
+The API owns input validation. Streamlit sends requests over HTTP and displays API validation errors, predictions, calibrated confidence, class scores, token information, and warnings. Its image requires only the `ui` dependency group and the `frontend/` files.
 
-The goal of this project is to automatically detect two independent properties of a given text:
+## Models and experiments
 
-| Property | Classes |
-|----------|---------|
-| **Style** | `academic`, `business`, `formal`, `informal`, `literary` |
-| **Tone** | `aggressive`, `friendly`, `neutral`, `sarcastic`, `urgent` |
+| Architecture | Representation |
+|---|---|
+| TextCNN | Trainable embeddings, convolution windows of 3/4/5 tokens, padding-safe pooling |
+| BiLSTM | Trainable embeddings, packed bidirectional sequences, masked attention and final hidden states |
+| DistilBERT | Fine-tuned English cased encoder with its saved tokenizer and attention masks |
 
-Two modeling approaches are explored and compared across the analysis notebooks.
+Each architecture has separate style and tone heads. The shared training pipeline combines the task losses, uses AdamW, clipping and scheduling, and selects checkpoints by **validation mean macro F1** with early stopping. Separate temperatures are fitted on validation predictions. Test data is excluded from model selection and calibration fitting.
 
-## Key Features
+Bundles preserve model weights, labels, tokenizer or vocabulary, sequence limit, calibration, configuration, training metadata, history, and dataset manifest. Loading checks file and weight checksums before inference. DistilBERT inference uses the saved configuration and local tokenizer without downloading its base model.
 
-- **Exploratory Data Analysis** — label distributions, text length statistics, and cross-tabulations
-- **Two modeling approaches** — TF-IDF + LinearSVC and spaCy embeddings + SVM/Random Forest
-- **Hyperparameter tuning** — `GridSearchCV` with 5-fold stratified cross-validation
-- **REST API** — FastAPI backend with `/predict`, `/predict/style`, and `/predict/tone` endpoints
-- **Web UI** — Streamlit-based interactive frontend
-- **Docker Compose** — one-command deployment with Nginx reverse proxy
+The raw corpus has 1000 messages. The audited dataset excludes two conflicting records and contains **998 messages**, split into **632 training / 158 validation / 208 test** examples with group-aware leakage checks. See [dataset preparation](docs/dataset/preprocessing.md).
 
-## Project Structure
+## Local setup
 
-```
-text-style-detection/
-├── app/                          # Core application and ML logic
-│   ├── config.py                 #   Shared labels, paths, seed, input limits, device
-│   ├── data.py                   #   Corpus compilation, validation, and audit pipeline
-│   ├── main.py                   #   FastAPI application & route definitions
-│   ├── ml.py                     #   Model loading, preprocessing & inference
-│   ├── schemas.py                #   Pydantic request/response schemas
-│   └── tokenization.py           #   Tokenization, Vocabulary, TextDataset, and Collator
-├── frontend/
-│   └── app.py                    # Streamlit web interface
-├── scripts/
-│   └── build_dataset.py          # CLI command to compile and audit the corpus
-├── dataset/                      # Raw text corpus (style/tone/sample.txt)
-│   ├── academic/
-│   │   ├── aggressive/
-│   │   ├── friendly/
-│   │   ├── neutral/
-│   │   ├── sarcastic/
-│   │   └── urgent/
-│   ├── business/
-│   ├── formal/
-│   ├── informal/
-│   └── literary/
-├── data/                         # Datasets (raw & audited)
-│   ├── dataset.csv               #   Legacy dataset from ML course (1 000 samples)
-│   ├── raw/
-│   │   └── dataset.csv           #   Compiled raw text dataset (1 000 samples)
-│   └── prepared/
-│       ├── dataset.csv           #   Clean, audited dataset (998 samples, sample_id)
-│       ├── excluded_conflicts.csv #  Excluded conflicting records for review
-│       ├── corpus_audit.json     #   Audit metadata and summary
-│       ├── train.csv             #   Training split (632 samples, group-aware)
-│       ├── validation.csv        #   Validation split (158 samples, group-aware)
-│       ├── test.csv              #   Test split (208 samples, group-aware)
-│       └── manifest.json         #   Fingerprints and split statistics
-├── reports/
-│   ├── corpus_audit.md           # Human-readable corpus audit report
-│   ├── corpus_audit.json         # Machine-readable audit metrics
-│   └── data_splits.md            # Data splits and leakage prevention report
-├── saving/                       # Trained TF-IDF + LinearSVC models
-│   ├── style_model.joblib        # (not commited to git)
-│   └── tone_model.joblib         # (not commited to git)
-├── nginx/
-│   └── nginx.conf                # Nginx reverse proxy configuration
-├── eda_01.ipynb                  # Notebook 01 — Exploratory Data Analysis
-├── modelling_02.ipynb            # Notebook 02 — TF-IDF + LinearSVC modeling
-├── embedding_models_03.ipynb     # Notebook 03 — spaCy embeddings + MultiOutput
-├── pyproject.toml                # Dependencies and tool configuration (uv)
-├── Makefile                      # Local launch and development commands
-├── docker-compose.yml            # Docker Compose orchestration
-├── backend.Dockerfile            # Backend container image
-└── frontend.Dockerfile           # Frontend container image
-```
-
-## Dataset
-
-The dataset contains **1 000 English text samples**, balanced across all classes:
-
-- **5 styles × 5 tones = 25 class combinations**, each with 40 samples
-- **200 samples per style**, **200 samples per tone**
-- Raw texts are stored in `dataset/{style}/{tone}/*.txt`
-- The compiled CSV (`data/dataset.csv`) includes both the original `text` and the preprocessed `clean_text`
-
-### Corpus Audit & Preparation (Deep Learning)
-
-The deep learning pipeline compiles raw text files and runs an audit (`app/data.py`, `scripts/build_dataset.py`):
-
-1. **Compilation:** Gathers 1,000 raw text samples across all styles and tones in deterministic sorted order.
-2. **Label Normalization:** Corrects legacy typo `literaly` → `literary` on 200 records.
-3. **Conflict Detection:** Identifies exact text duplicates with conflicting labels. Two records with the text `Respond immediately.` (labeled as `business` and `formal`) are excluded and saved to `data/prepared/excluded_conflicts.csv` rather than arbitrarily choosing one label.
-4. **Clean Dataset:** Produces 998 clean verified samples with unique `sample_id` hashes (`data/prepared/dataset.csv`).
-5. **Audit Reports:** Generates `reports/corpus_audit.md` and `reports/corpus_audit.json`.
-6. **Reproducible Splits & Leakage Prevention:** Groups near-duplicates (word trigram Jaccard ≥ 0.82 or containment ≥ 0.95) into connected components. Applies nested `StratifiedGroupKFold` on combined `style__tone` strata, producing a 632 / 158 / 208 train/val/test split with zero overlap across identifiers, groups, and normalized texts (`data/prepared/manifest.json`, `reports/data_splits.md`).
-7. **Tokenization & Minibatch Loading (`app/tokenization.py`):** Builds frequency-ranked word vocabulary on training texts only with `<pad>` (0) and `<unk>` (1). Preserves punctuation and signals capitalization via `<upper>`. `Collator` performs dynamic padding while ensuring `min_length >= 5` to safeguard CNN convolution operations.
-
-### Text Preprocessing (Classical ML Baseline)
-
-The preprocessing pipeline (shared between `scripts/build_dataset.py` and `app/ml.py`):
-
-1. Remove URLs (`http://…`, `www.…`)
-2. Tokenize and lemmatize using **spaCy** (`en_core_web_sm`)
-3. Preserve punctuation tokens; lowercase lemmatized words
-4. Collapse multiple spaces
-
-## Models
-
-### Approach 1 — TF-IDF + LinearSVC
-
-> 📓 Notebook: [`modelling_02.ipynb`](modelling_02.ipynb)
-
-Two independent classifiers (one for style, one for tone) trained on `clean_text`:
-
-- **Feature extraction:** `TfidfVectorizer`
-- **Classifier:** `LinearSVC`
-- **Tuning:** `GridSearchCV` (5-fold CV, `f1_weighted` scoring)
-- **Search space:**
-  - `max_features`: {3 000, 5 000}
-  - `ngram_range`: {(1,1), (1,2), (1,3)}
-  - `C`: {0.1, 1, 10}
-
-### Approach 2 — spaCy Embeddings + MultiOutputClassifier
-
-> 📓 Notebook: [`embedding_models_03.ipynb`](embedding_models_03.ipynb)
-
-A single `MultiOutputClassifier` predicting both targets simultaneously:
-
-- **Feature extraction:** 300-dimensional word vectors via **spaCy** (`en_core_web_md`), averaged per document
-- **Classifiers compared:** `SVC` (RBF kernel, C=10) and `RandomForestClassifier` (300 estimators)
-- **Evaluation:** 5-fold stratified CV with F1-macro scoring
-
-## Results
-
-### Approach 1 — TF-IDF + LinearSVC (Test Set)
-
-| Target | Accuracy | F1 (weighted) | CV F1 (weighted) | Best Params |
-|--------|----------|---------------|-------------------|-------------|
-| **Style** | 0.89 | 0.886 | 0.918 | `C=1`, `max_features=5000`, `ngram_range=(1,3)` |
-| **Tone** | 0.94 | 0.935 | 0.950 | `C=1`, `max_features=5000`, `ngram_range=(1,2)` |
-
-<details>
-<summary>Per-class metrics — Style (TF-IDF + LinearSVC)</summary>
-
-| Class | Precision | Recall | F1-score | Support |
-|-------|-----------|--------|----------|---------|
-| academic | 0.97 | 0.93 | 0.95 | 40 |
-| business | 0.71 | 0.85 | 0.77 | 40 |
-| formal | 0.88 | 0.72 | 0.79 | 40 |
-| informal | 0.90 | 0.95 | 0.93 | 40 |
-| literary | 1.00 | 0.97 | 0.99 | 40 |
-
-</details>
-
-<details>
-<summary>Per-class metrics — Tone (TF-IDF + LinearSVC)</summary>
-
-| Class | Precision | Recall | F1-score | Support |
-|-------|-----------|--------|----------|---------|
-| aggressive | 1.00 | 0.90 | 0.95 | 40 |
-| friendly | 0.93 | 0.93 | 0.93 | 40 |
-| neutral | 0.91 | 0.97 | 0.94 | 40 |
-| sarcastic | 0.88 | 0.93 | 0.90 | 40 |
-| urgent | 0.97 | 0.95 | 0.96 | 40 |
-
-</details>
-
-### Approach 2 — spaCy Embeddings (5-Fold CV)
-
-| Model | Target | Test Accuracy | CV F1-macro |
-|-------|--------|---------------|-------------|
-| **SVM** | Style | 0.870 | 0.853 ± 0.022 |
-| **SVM** | Tone | 0.890 | 0.872 ± 0.016 |
-| RF | Style | 0.855 | 0.837 ± 0.019 |
-| RF | Tone | 0.880 | 0.846 ± 0.013 |
-
-> **Conclusion:** TF-IDF + LinearSVC outperforms the embedding-based approach on this dataset. The TF-IDF models are used for the deployed inference API.
-
-## Documentation
-
-Detailed project documentation is built with **MkDocs Material** and hosted on GitHub Pages:
-
-> **Documentation URL:** [zave52.github.io/text-style-detection](https://zave52.github.io/text-style-detection/)
-
-The documentation includes:
-- **Project Overview** — details about writing styles, emotional tones, and dataset balance.
-- **Exploratory Data Analysis** — visualization of word counts, label balance, and key text length statistics.
-- **Modeling Guide** — detailed workflow of TF-IDF extraction, LinearSVC parameters, and Word Embeddings alternatives.
-- **API Reference** — interactive endpoints documentation.
-- **Deployment Guide** — instruction manual for local development and Docker multi-container setup.
-
-## Getting Started
-
-### Classification scope
-
-| Item | Value |
-|------|-------|
-| Input language | English |
-| Writing styles (5) | `academic`, `business`, `formal`, `informal`, `literary` |
-| Communicative tones (5) | `aggressive`, `friendly`, `neutral`, `sarcastic`, `urgent` |
-| Input limits | 1–2000 characters per text, up to 64 texts per batch |
-| Random seed | `42` |
-
-All labels, paths, the seed, and the limits are defined in one place: [`app/config.py`](app/config.py).
-The raw corpus folder and the legacy models still use the misspelled label `literaly`; it is mapped to `literary` by `LABEL_ALIASES`.
-
-### Prerequisites
-
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) (it downloads Python 3.13 automatically)
-- `make` (optional, every command below also has a plain `uv run ...` form)
-- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/) (only for containerized deployment)
-
-### Local Development
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run these commands from the repository root. Python 3.13 and CPU PyTorch are configured in `pyproject.toml` and `uv.lock`.
 
 ```bash
-git clone https://github.com/zave52/text-style-detection.git
-cd text-style-detection
-
-make install          # = uv sync: creates .venv (Python 3.13) with all dependency groups
+uv sync --frozen
 ```
 
-Dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in `uv.lock`, so every developer gets identical versions.
-PyTorch is installed in its **CPU build** by default, no GPU is required.
-
-| Command | What it does |
-|---------|--------------|
-| `make api` | FastAPI on http://127.0.0.1:8000 (Swagger UI at `/docs`) |
-| `make ui` | Streamlit on http://localhost:8501 (talks to the API, start `make api` first) |
-| `make notebook` | JupyterLab (run `make kernel` once to register the kernel) |
-| `make dataset` | Rebuild `data/dataset.csv` from `dataset/` |
-| `make test` / `make lint` | pytest / Ruff |
-| `make docs` | Serve the MkDocs documentation |
-| `make install-min` | Runtime dependencies only (`api` and `ui` groups) |
-
-Without `make`: `uv run uvicorn app.main:app --reload` and `uv run streamlit run frontend/app.py`.
-
-**Configuration through environment variables**
-
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `TSD_DEVICE` | `cpu` | `cpu`, `cuda`, or `auto` (CUDA if available) |
-| `TSD_API_HOST` / `TSD_API_PORT` | `127.0.0.1` / `8000` | API bind address |
-| `API_URL` | `http://localhost:8000` | API address used by the Streamlit interface |
-
-**Optional: NVIDIA GPU.** Replace the CPU build with a CUDA build, for example
-`uv pip install torch --index-url https://download.pytorch.org/whl/cu126`, and run with `TSD_DEVICE=auto`.
-Note that a later `uv sync` restores the CPU build.
-
-### Docker Deployment
-
-Launch the entire stack (backend + frontend + Nginx) with a single command:
+Select an existing **complete, calibrated bundle**, keeping its entire experiment directory:
 
 ```bash
-docker compose up --build
+uv run python -m scripts.select_model --checkpoint artifacts/experiments/distilbert_01
 ```
 
-The application will be available at **http://localhost:8000**:
+The command validates the bundle and records it in `artifacts/active_model.json`. If no bundle exists yet, prepare data and train one first, using an unused run directory:
 
-| Path | Service |
-|------|---------|
-| `/` | Streamlit frontend |
-| `/predict` | FastAPI prediction endpoint |
-| `/docs` | Interactive API documentation (Swagger UI) |
+```bash
+uv run python -m scripts.build_dataset
+uv run python -m scripts.train --model textcnn --run-dir artifacts/experiments/textcnn_01 --epochs 20
+uv run python -m scripts.select_model --checkpoint artifacts/experiments/textcnn_01
+```
 
-## API Reference
+Start the API and UI in **separate terminals**:
 
-### `POST /predict`
+```bash
+uv run uvicorn app.main:app --reload
+```
 
-Predict both style and tone.
+```bash
+uv run streamlit run frontend/app.py
+```
 
-**Request:**
+Open the UI at `http://localhost:8501`, Swagger at `http://localhost:8000/docs`, and model information at `http://localhost:8000/model/info`.
+
+The CLI uses the same selected model:
+
+```bash
+uv run python -m app.prediction "Please send the financial report tomorrow."
+uv run python -m app.prediction --batch-size 4 "Hello!" "Please send the report."
+```
+
+## Docker Compose
+
+Prepare and select a bundle on the host as above **before starting Compose**. Keep the selected bundle inside `artifacts/`; registry paths are stored relative to the registry and remain usable at the container mount point.
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f backend
+```
+
+Compose mounts `./artifacts` at `/app/artifacts` **read-only**. Weights are excluded from the image build context. The backend image checks `http://127.0.0.1:8000/health/ready`; Compose waits for the backend to become healthy before starting the UI and proxy. An absent or invalid model makes readiness fail and is reported in backend logs.
+
+Nginx exposes `http://localhost:8000` with the UI at `/`, Swagger at `/docs`, prediction paths at `/predict...`, health at `/health/...`, and model metadata at `/model/info`. Backend and frontend ports remain internal to Compose.
+
+After selecting another model, reload the running API: restart Uvicorn locally or run `docker compose restart backend`. Selection does not replace a model already loaded into memory. The backend container reads the registry but cannot modify the mounted artifacts.
+
+See the [deployment guide](docs/application/deployment.md) for model preparation, configuration, and troubleshooting.
+
+## Prediction API
+
+| Method and path | Purpose |
+|---|---|
+| `POST /predict` | One message: `{"text": "Hello!"}` |
+| `POST /predict/batch` | Ordered batch: `{"texts": ["Hello!", "Please send the report."]}` |
+| `POST /predict/style`, `POST /predict/tone` | Compatibility paths returning the full two-task response |
+| `GET /model/info` | Model, labels, tokenizer limit, temperatures, checksums, and input limits |
+| `GET /health/live` | Process liveness |
+| `GET /health/ready` | `200` when the model is loaded; `503` otherwise |
+
+A single prediction has this shape; the values below are illustrative, not benchmark results:
 
 ```json
 {
-  "text": "Your text here"
+  "model": "distilbert",
+  "style": "informal",
+  "tone": "friendly",
+  "style_confidence": 0.83,
+  "tone_confidence": 0.8,
+  "style_scores": {"academic": 0.03, "business": 0.05, "formal": 0.04, "informal": 0.83, "literary": 0.05},
+  "tone_scores": {"aggressive": 0.02, "friendly": 0.8, "neutral": 0.08, "sarcastic": 0.05, "urgent": 0.05},
+  "character_count": 6,
+  "token_count": 4,
+  "used_token_count": 4,
+  "max_length": 128,
+  "truncated": false,
+  "unknown_token_count": 0,
+  "unknown_ratio": 0.0,
+  "warnings": []
 }
 ```
 
-**Response:**
+Batch responses wrap the same objects in `{"results": [...]}`. Scores are normalized independently for the two tasks. Warnings identify truncation, unfamiliar input, or uncertain predictions. Unfamiliar-input warnings are heuristics rather than a language detector.
 
-```json
-{
-  "style": "academic",
-  "tone": "neutral"
-}
+Invalid bodies, whitespace-only input, oversized messages, and invalid batch sizes return `422`. Model loading or inference failures return `503`. See the [API reference](docs/application/api.md) and [shared prediction service](docs/application/prediction-service.md) for the full contract.
+
+## Repository guide
+
+| Path | Responsibility |
+|---|---|
+| `app/models.py`, `app/bilstm.py`, `app/distilbert.py` | Neural architectures |
+| `app/tokenization.py` | Saved vocabulary and transformer tokenizer interfaces |
+| `app/experiments.py`, `app/training.py` | Shared training and checkpoint selection |
+| `app/calibration.py`, `app/bundles.py`, `app/registry.py` | Calibration, integrity, and active-model selection |
+| `app/service.py`, `app/prediction.py` | Reusable prediction service and CLI |
+| `app/main.py`, `app/schemas.py`, `app/input_validation.py` | API lifecycle, schemas, and validation |
+| `frontend/app.py` | Independent Streamlit HTTP client |
+| `scripts/train.py`, `scripts/calibrate.py`, `scripts/select_model.py` | Experiment and selection commands |
+| `scripts/evaluate.py` | Compatible held-out evaluation and exported reports |
+| `artifacts/` | Local trained bundles and active registry, mounted for inference |
+| `dataset/`, `data/prepared/`, `reports/` | Raw corpus, prepared splits, and analysis |
+| `app/ml.py`, analysis notebooks | Historical classical models |
+
+## Verification and documentation
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -q
+uv run --group docs mkdocs build --strict
 ```
 
-### `POST /predict/style`
+The [architecture guide](docs/application/architecture.md) describes service boundaries and model loading. [Classical vs neural](docs/modeling/legacy-vs-neural.md) reports historical accuracy and F1 with split and averaging caveats; those results are not a benchmark of whichever bundle is currently selected.
 
-Predict style only.
-
-**Response:**
-
-```json
-{
-  "style": "formal"
-}
-```
-
-### `POST /predict/tone`
-
-Predict tone only.
-
-**Response:**
-
-```json
-{
-  "tone": "sarcastic"
-}
-```
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| ML / NLP | scikit-learn, spaCy, PyTorch, Transformers, pandas, seaborn, matplotlib |
-| Backend API | FastAPI, Uvicorn |
-| Frontend | Streamlit |
-| Containerization | Docker, Docker Compose, Nginx |
-| Serialization | joblib |
+Documentation is configured in `mkdocs.yml` and published at [zave52.github.io/text-style-detection](https://zave52.github.io/text-style-detection/).

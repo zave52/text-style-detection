@@ -3,6 +3,7 @@
 import json
 import shutil
 import socket
+import stat
 from dataclasses import asdict
 from pathlib import Path
 
@@ -333,3 +334,57 @@ def test_streamlit_uses_the_same_response_for_single_and_batch(bundles, monkeypa
             "results": service.predict_batch(["hello", "zzzzzz"])
         }
         assert len(calls) == 2
+
+        for invalid in (" ", "x" * (MAX_INPUT_CHARS + 1)):
+            app.text_area(key="single_text").set_value(invalid)
+            app.button(key="both").click().run()
+            assert not app.exception
+            assert calls[-1][1] == {"text": invalid}
+            assert app.error
+
+        app.text_area(key="batch_text").set_value("\n".join(["hello"] * (MAX_BATCH_SIZE + 1)))
+        app.button(key="batch").click().run()
+        assert not app.exception
+        assert len(calls[-1][1]["texts"]) == MAX_BATCH_SIZE + 1
+        assert app.error
+
+
+@pytest.mark.parametrize("architecture", ["textcnn", "bilstm", "distilbert"])
+def test_api_loads_selected_bundle_from_read_only_artifacts(
+    bundles, tmp_path, monkeypatch, architecture
+):
+    artifacts = tmp_path / "artifacts"
+    root = artifacts / "experiments" / architecture
+    shutil.copytree(bundles[architecture], root)
+    registry = artifacts / "active_model.json"
+    ActiveModelRegistry(registry).select(root)
+    original = PredictionService(registry_path=registry, device="cpu").predict("hello")
+    files = [path for path in artifacts.rglob("*") if path.is_file()]
+    entries = set(artifacts.rglob("*"))
+    modes = {path: stat.S_IMODE(path.stat().st_mode) for path in [artifacts, *entries]}
+    checksums = {path: sha256(path) for path in files}
+    monkeypatch.delenv("TSD_CHECKPOINT", raising=False)
+    monkeypatch.setenv("TSD_REGISTRY", str(registry))
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+    get_prediction_service.cache_clear()
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Inference must not download a base model or tokenizer.")
+
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+    try:
+        for path in modes:
+            path.chmod(0o555 if path.is_dir() else 0o444)
+        with TestClient(create_app()) as client:
+            assert client.get("/health/ready").json() == {
+                "status": "ready",
+                "model": architecture,
+            }
+            response = client.post("/predict", json={"text": "hello"})
+            assert response.status_code == 200
+            assert response.json() == original
+        assert {path: sha256(path) for path in files} == checksums
+        assert set(artifacts.rglob("*")) == entries
+    finally:
+        for path, mode in modes.items():
+            path.chmod(mode)
