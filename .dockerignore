@@ -7,4 +7,6 @@ __pycache__/
 
 dataset/
 data/
+artifacts/
+saving/
 
