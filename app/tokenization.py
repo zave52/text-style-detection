@@ -150,7 +150,7 @@ class TransformerTokenizer:
         self.tokenizer.model_max_length = max_length
         self.pad_id = self.tokenizer.pad_token_id
         self.max_length = max_length
-    
+
     def encode(self, text: str) -> list[int]:
         """Encode text to token IDs with truncation."""
         return self.tokenizer(text, truncation=True, max_length=self.max_length)["input_ids"]

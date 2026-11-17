@@ -8,7 +8,6 @@ from app.config import STYLES, TONES, VOCAB_PAD_ID
 
 
 class BiLSTMAttention(nn.Module):
-
     def __init__(
         self,
         vocab_size: int,

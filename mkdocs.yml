@@ -52,6 +52,7 @@ nav:
       - Classical vs Neural: modeling/legacy-vs-neural.md
   - Application:
       - Architecture: application/architecture.md
+      - Prediction Service: application/prediction-service.md
       - API Reference: application/api.md
       - Deployment: application/deployment.md
 

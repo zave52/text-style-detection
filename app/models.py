@@ -13,7 +13,6 @@ from app.distilbert import DistilBERTClassifier
 
 
 class TextCNN(nn.Module):
-
     def __init__(
         self,
         vocab_size: int,
@@ -101,6 +100,7 @@ MODEL_REGISTRY: dict[str, type[nn.Module]] = {
     "bilstm": BiLSTMAttention,
     "distilbert": DistilBERTClassifier,
 }
+
 
 def build_model(model_name: str, **kwargs: Any) -> nn.Module:
     """Construct a model implementing forward(input_ids, lengths) -> logits dict."""

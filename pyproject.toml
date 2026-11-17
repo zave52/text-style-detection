@@ -14,6 +14,7 @@ api = [
     "uvicorn>=0.48.0",
     "joblib>=1.5.3",
     "numpy>=2.0",
+    "pandas>=3.0.3",
     "scikit-learn>=1.5.0",
     "spacy>=3.8.13",
     "en-core-web-sm",

@@ -3,6 +3,17 @@ services:
     build:
       context: .
       dockerfile: backend.Dockerfile
+    environment:
+      TSD_DEVICE: ${TSD_DEVICE:-cpu}
+      TSD_REGISTRY: /app/artifacts/active_model.json
+      TSD_CHECKPOINT: ${TSD_CHECKPOINT:-}
+    volumes:
+      - type: bind
+        source: ./artifacts
+        target: /app/artifacts
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
       - style-tone-classification
 
@@ -11,11 +22,12 @@ services:
       context: .
       dockerfile: frontend.Dockerfile
     environment:
-      - API_URL=http://backend:8000
+      API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - style-tone-classification
-
-
   nginx:
     image: nginx:1.31-alpine3.23
     ports:
@@ -23,8 +35,10 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     networks:
       - style-tone-classification
 

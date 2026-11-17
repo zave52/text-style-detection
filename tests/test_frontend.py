@@ -15,62 +15,73 @@ def run_app(monkeypatch):
     return AppTest.from_file(script).run()
 
 
-def test_interface_renders_prediction_controls(monkeypatch):
+def prediction_response():
+    return {
+        "model": "textcnn",
+        "style": "formal",
+        "tone": "neutral",
+        "style_confidence": 0.8,
+        "tone_confidence": 0.8,
+        "style_scores": {"formal": 0.8, "casual": 0.2},
+        "tone_scores": {"neutral": 0.8, "urgent": 0.2},
+        "character_count": 26,
+        "token_count": 4,
+        "used_token_count": 4,
+        "max_length": 128,
+        "truncated": False,
+        "unknown_token_count": 0,
+        "unknown_ratio": 0.0,
+        "warnings": [],
+    }
+
+
+def test_interface_renders_single_and_batch_controls(monkeypatch):
     app = run_app(monkeypatch)
 
     assert not app.exception
-    assert len(app.text_area) == 1
-    assert [button.label for button in app.button] == [
-        "Predict Both (Style & Tone)",
-        "Style Only",
-        "Tone Only",
-    ]
+    assert [text_area.label for text_area in app.text_area] == ["Your text", "Messages"]
+    assert {button.key for button in app.button} == {"both", "style", "tone", "batch"}
 
 
-def test_empty_input_does_not_call_api(monkeypatch):
-    post = Mock()
+def test_prediction_is_sent_and_displayed(monkeypatch):
+    response = Mock(ok=True, json=prediction_response)
+    post = Mock(return_value=response)
     monkeypatch.setattr(requests, "post", post)
     app = run_app(monkeypatch)
-    app.button[0].click().run()
-
-    post.assert_not_called()
-    assert any("Please enter some text first." in warning.value for warning in app.warning)
-
-
-def test_successful_prediction_is_displayed(monkeypatch):
-    post = Mock(
-        return_value=Mock(status_code=200, json=lambda: {"style": "formal", "tone": "neutral"})
-    )
-    monkeypatch.setattr(requests, "post", post)
-    app = run_app(monkeypatch)
-    app.text_area[0].set_value("Please review this report.").run()
-    app.button[0].click().run()
+    app.text_area(key="single_text").set_value("Please review this report.")
+    app.button(key="both").click().run()
 
     post.assert_called_once_with(
         "http://api.test/predict",
         json={"text": "Please review this report."},
+        timeout=(5, 120),
     )
-    assert any("formal" in item.value for item in app.markdown)
-    assert any("neutral" in item.value for item in app.markdown)
+    assert not app.exception
+    assert any(metric.label == "Style" and metric.value == "formal" for metric in app.metric)
+    assert any(metric.label == "Tone" and metric.value == "neutral" for metric in app.metric)
 
 
-def test_api_error_is_shown_to_user(monkeypatch):
-    post = Mock(return_value=Mock(status_code=503, text="Model unavailable"))
+def test_api_validation_error_is_shown_to_user(monkeypatch):
+    response = Mock(
+        ok=False,
+        json=lambda: {"detail": "Messages must not be empty or contain only whitespace."},
+    )
+    post = Mock(return_value=response)
     monkeypatch.setattr(requests, "post", post)
     app = run_app(monkeypatch)
-    app.text_area[0].set_value("Please review this report.").run()
-    app.button[0].click().run()
+    app.button(key="both").click().run()
 
-    assert any("Error 503: Model unavailable" in error.value for error in app.error)
+    post.assert_called_once()
+    assert any("Messages must not be empty" in error.value for error in app.error)
 
 
 def test_connection_error_is_shown_to_user(monkeypatch):
     monkeypatch.setattr(requests, "post", Mock(side_effect=requests.ConnectionError))
     app = run_app(monkeypatch)
-    app.text_area[0].set_value("Please review this report.").run()
-    app.button[0].click().run()
+    app.text_area(key="single_text").set_value("Please review this report.")
+    app.button(key="both").click().run()
 
-    assert any("Error connecting to the backend" in error.value for error in app.error)
+    assert any("Cannot reach the prediction API" in error.value for error in app.error)
 
 
 @pytest.mark.parametrize("frontend_only", [False, True])

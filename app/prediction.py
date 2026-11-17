@@ -185,6 +185,9 @@ class NeuralPredictor:
 
 
 def main() -> None:
+    from app.input_validation import validate_batch, validate_batch_size
+    from app.service import PredictionService
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("texts", nargs="+", help="Quote each input text separately.")
     parser.add_argument(
@@ -193,22 +196,24 @@ def main() -> None:
         help="Defaults to the active registry model.",
     )
     parser.add_argument("--registry", type=Path)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
         "--probabilities",
         action="store_true",
-        help="Show calibrated probabilities.",
+        help="Compatibility flag: calibrated class scores are always included.",
     )
     parser.add_argument("--device", choices=("cpu", "cuda", "auto"), default=None)
     args = parser.parse_args()
 
-    predictor = NeuralPredictor(
-        args.checkpoint,
-        device=args.device,
-        registry_path=args.registry,
-    )
-    result = (
-        predictor.predict_proba(args.texts) if args.probabilities else predictor.predict(args.texts)
-    )
+    options = {"registry_path": args.registry} if args.registry is not None else {}
+    try:
+        validate_batch(args.texts)
+        validate_batch_size(args.batch_size)
+        service = PredictionService(args.checkpoint, device=args.device, **options)
+        results = service.predict_batch(args.texts, batch_size=args.batch_size)
+    except (ValueError, OSError, RuntimeError) as error:
+        parser.exit(2, f"Prediction failed: {error}\n")
+    result = results[0] if len(results) == 1 else {"results": results}
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
