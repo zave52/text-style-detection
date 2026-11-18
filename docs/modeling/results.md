@@ -94,15 +94,15 @@ Several factors explain why the simpler TF-IDF approach outperforms the embeddin
 
 ---
 
-## Chosen Model for Deployment
+## Historical Baseline Artifacts
 
-!!! success "Deployed Model"
-    The **TF-IDF + LinearSVC** approach is used for the production inference API, as it achieves higher performance with lower computational cost and no dependency on large embedding models at inference time.
+!!! info "Not the Current Deployment"
+    These TF-IDF results describe the historical classical baseline. The current inference API loads the selected calibrated neural bundle (TextCNN, BiLSTM, or DistilBERT) through the active-model registry. Follow the [deployment guide](../application/deployment.md) to prepare and select a serving bundle.
 
 | Property | Value |
 |----------|-------|
 | Approach | TF-IDF + LinearSVC |
 | Style F1 (weighted) | 0.886 |
 | Tone F1 (weighted) | 0.935 |
-| Model files | `saving/style_model.joblib`, `saving/tone_model.joblib` |
-| Inference dependency | spaCy `en_core_web_sm` (for preprocessing only) |
+| Model files | Historical `saving/style_model.joblib`, `saving/tone_model.joblib` |
+| Inference dependency | Historical spaCy `en_core_web_sm` preprocessing |
