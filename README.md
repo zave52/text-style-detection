@@ -13,7 +13,7 @@ The original TF-IDF and spaCy classifiers remain documented as historical baseli
 | Language | English |
 | Request limits | 1–2000 characters per non-whitespace message; 1–64 messages per batch |
 
-The API owns input validation. Streamlit sends requests over HTTP and displays API validation errors, predictions, calibrated confidence, class scores, token information, and warnings. Its image requires only the `ui` dependency group and the `frontend/` files.
+The API owns input validation. Streamlit sends requests over HTTP and displays API validation errors, predictions, calibrated confidence, class scores, token information, and warnings. Batch analysis accepts pasted messages or a UTF-8 CSV with a `text` column, and results can be downloaded as CSV or JSON. Its image requires only the `ui` dependency group and the `frontend/` files.
 
 ## Models and experiments
 
