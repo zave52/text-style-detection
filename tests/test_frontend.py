@@ -91,6 +91,7 @@ def test_streamlit_starts_without_backend_imports(tmp_path, frontend_only):
         entrypoint = tmp_path / "frontend" / "app.py"
         entrypoint.parent.mkdir()
         shutil.copyfile(source, entrypoint)
+        shutil.copyfile(source.with_name("batch.py"), entrypoint.with_name("batch.py"))
         assert not (entrypoint.parents[1] / "app").exists()
     else:
         entrypoint = source

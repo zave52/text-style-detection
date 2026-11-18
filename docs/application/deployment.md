@@ -51,7 +51,7 @@ uv run streamlit run frontend/app.py
 | `http://localhost:8000/health/ready` | Model readiness |
 | `http://localhost:8000/model/info` | Loaded model information |
 
-Streamlit uses `API_URL`, defaulting to `http://localhost:8000`. It only requires its own code, Streamlit, and requests; the API validates text length and batch size and returns `422` errors for the UI to display.
+Streamlit uses `API_URL`, defaulting to `http://localhost:8000`. It only requires its own code, Streamlit, and requests; the API validates text length and batch size and returns `422` errors for the UI to display. The batch view accepts pasted messages or a UTF-8 CSV with a `text` column. Batch predictions can be downloaded as CSV or JSON.
 
 ## Docker Compose
 
