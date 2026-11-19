@@ -29,6 +29,12 @@ Bundles preserve model weights, labels, tokenizer or vocabulary, sequence limit,
 
 The raw corpus has 1000 messages. The audited dataset excludes two conflicting records and contains **998 messages**, split into **632 training / 158 validation / 208 test** examples with group-aware leakage checks. See [dataset preparation](docs/dataset/preprocessing.md).
 
+## Research notebooks
+
+The three-stage research workflow is in [`notebooks/`](notebooks/): [exploratory analysis](notebooks/01_exploratory_data_analysis.ipynb), [data preparation and model design](notebooks/02_data_preparation_and_model_design.ipynb), and [training and evaluation results](notebooks/03_training_and_evaluation.ipynb). Each notebook initializes its own imports and paths. The results notebook reads saved experiment and evaluation files by default; its example training command is optional and does not change the active model registry.
+
+The root-level `modelling_02.ipynb` and `embedding_models_03.ipynb` are retained as historical classical-model experiments referenced by the modeling documentation.
+
 ## Local setup
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run these commands from the repository root. Python 3.13 and CPU PyTorch are configured in `pyproject.toml` and `uv.lock`.
@@ -140,7 +146,8 @@ Invalid bodies, whitespace-only input, oversized messages, and invalid batch siz
 | `scripts/evaluate.py` | Compatible held-out evaluation and exported reports |
 | `artifacts/` | Local trained bundles and active registry, mounted for inference |
 | `dataset/`, `data/prepared/`, `reports/` | Raw corpus, prepared splits, and analysis |
-| `app/ml.py`, analysis notebooks | Historical classical models |
+| `notebooks/` | Three-stage research notebook workflow |
+| `app/ml.py`, `modelling_02.ipynb`, `embedding_models_03.ipynb` | Historical classical models |
 
 ## Verification and documentation
 
