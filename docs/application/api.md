@@ -12,9 +12,11 @@ Locally, the API is at `http://localhost:8000`. Compose exposes the same API pat
 | POST | `/predict/batch` | `BatchRequest` | `{"results": [PredictResponse, ...]}` |
 | POST | `/predict/style` | `TextRequest` | Full `PredictResponse` |
 | POST | `/predict/tone` | `TextRequest` | Full `PredictResponse` |
-| GET | `/model/info` | None | Loaded model metadata |
-| GET | `/health/live` | None | `{"status": "alive"}` |
-| GET | `/health/ready` | None | `{"status": "ready", "model": "..."}` or `503` |
+| GET | `/model/info` | None | `ModelInfoResponse` or `503` |
+| GET | `/health/live` | None | `LivenessResponse`: `{"status": "alive"}` |
+| GET | `/health/ready` | None | `ReadinessResponse`: `{"status": "ready", "model": "..."}` or `503` |
+
+All request and response schemas are defined in `app/schemas.py` and appear in Swagger grouped by the **Prediction**, **Model**, and **Health** tags. Each prediction endpoint documents its `422` and `503` responses; `503` bodies follow `ErrorResponse` (`{"detail": "..."}`).
 
 The `/predict/style` and `/predict/tone` paths are compatibility aliases. **Both return both tasks and every prediction field.** The UI decides which task to display. They do not expose separate model loaders or a reduced schema.
 
