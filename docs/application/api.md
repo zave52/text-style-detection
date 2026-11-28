@@ -72,6 +72,44 @@ curl -X POST http://localhost:8000/predict/batch \
 
 The response is `{"results": [...]}`, with one complete prediction object per message in the original order. Duplicates are preserved. The entire batch must pass validation before tokenization and inference.
 
+## Python client examples
+
+### Single prediction with `requests`
+
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/predict",
+    json={"text": "Please submit the quarterly expenditure summary by Friday."},
+    timeout=10,
+)
+response.raise_for_status()
+result = response.json()
+
+print(f"Style: {result['style']} ({result['style_confidence']:.2%})")
+print(f"Tone:  {result['tone']} ({result['tone_confidence']:.2%})")
+```
+
+### Batch prediction with `httpx`
+
+```python
+import httpx
+
+messages = [
+    "Could we please reschedule tomorrow's synchronization call?",
+    "This behavior is completely intolerable and needs immediate attention.",
+]
+
+with httpx.Client(base_url="http://localhost:8000", timeout=15.0) as client:
+    response = client.post("/predict/batch", json={"texts": messages})
+    response.raise_for_status()
+    predictions = response.json()["results"]
+
+for msg, pred in zip(messages, predictions, strict=True):
+    print(f"[{pred['style']} / {pred['tone']}] {msg}")
+```
+
 ## Requests and validation
 
 | Schema | Field | Rules |

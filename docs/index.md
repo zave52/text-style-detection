@@ -53,8 +53,13 @@ For Docker, prepare the selected bundle under host `artifacts/`, then run `docke
 
 | Guide | Contents |
 |---|---|
+| [Installation](getting-started/installation.md) | Virtual environment setup, dependencies, CPU PyTorch, Git LFS |
+| [Launch Modes](getting-started/launch-modes.md) | CLI, FastAPI, Streamlit, Docker Compose, and model selection |
+| [Workflows & Experiments](experiments/workflows.md) | Notebooks, dataset preparation, training, calibration, and evaluation |
+| [Model Architectures](modeling/architectures.md) | TextCNN, BiLSTM with attention, DistilBERT, dual heads, temperature scaling |
 | [Prediction Service](application/prediction-service.md) | Python, CLI, calibration, token information, and warnings |
 | [API Reference](application/api.md) | Single/batch requests, full response schemas, validation, and health |
 | [Architecture](application/architecture.md) | Runtime boundaries, loading, and proxy routes |
 | [Deployment](application/deployment.md) | Host model preparation, local startup, read-only mounts, and troubleshooting |
 | [Classical vs Neural](modeling/legacy-vs-neural.md) | Historical metrics and fair-comparison requirements |
+| [Troubleshooting](troubleshooting/troubleshooting.md) | Common errors, notebook kernels, CPU limits, checkpoint integrity, Windows quirks |
