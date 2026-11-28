@@ -50,7 +50,7 @@ What the script does:
 3. Groups near-duplicates to prevent test leakage.
 4. Performs group-aware stratified splitting: **632 train / 158 validation / 208 test**.
 5. Outputs:
-   - `data/dataset.csv`: Compiled raw corpus.
+   - `data/raw/dataset.csv`: Compiled raw corpus.
    - `data/prepared/train.csv`, `validation.csv`, `test.csv`: Verified splits.
    - `data/prepared/manifest.json`: Fingerprints, sample counts, and split hashes.
    - `reports/corpus_audit.md` & `data_splits.md`: Audit summaries.
@@ -59,7 +59,7 @@ What the script does:
 
 ## 3. Training Neural Models (`scripts/train.py`)
 
-The unified training script `scripts.train` supports all three neural architectures with early stopping, AdamW optimization, learning rate scheduling, and validation-based checkpointing.
+The unified training script `scripts.train` is the canonical entrypoint for training all three neural architectures with early stopping, AdamW optimization, learning rate scheduling, and validation-based checkpointing.
 
 ### Command Syntax
 
@@ -79,29 +79,26 @@ uv run python -m scripts.train --model distilbert --run-dir artifacts/experiment
 | Option | Default | Description |
 |---|---|---|
 | `--model` | Required | Model architecture: `textcnn`, `bilstm`, or `distilbert` |
-| `--run-dir` | Auto | Destination directory for model bundle and metrics |
+| `--run-dir` | Required | Destination directory for model bundle and metrics |
 | `--epochs` | 20 | Maximum training epochs |
-| `--batch-size` | 32 (16 for DistilBERT) | Batch size for training and validation loaders |
-| `--lr` | 1e-3 (2e-5 for DistilBERT) | Encoder learning rate |
-| `--head-lr` | None | Dedicated learning rate for classification heads |
+| `--batch-size` | 32 | Batch size for training and validation loaders across all models |
+| `--max-length` | 128 | Maximum sequence length limit for tokenization |
+| `--lr` | Model default (1e-3 for CNN/BiLSTM, 2e-5 for DistilBERT) | Encoder learning rate |
+| `--head-lr` | 1e-4 | Dedicated learning rate for classification heads (applies to DistilBERT only) |
 | `--weight-decay` | 1e-2 | AdamW weight decay |
 | `--max-grad-norm` | 1.0 | Gradient clipping threshold |
 | `--patience` | 5 | Early stopping patience (epochs without validation improvement) |
 | `--style-weight` | 1.0 | Loss multiplier for style cross-entropy |
 | `--tone-weight` | 1.0 | Loss multiplier for tone cross-entropy |
-| `--device` | auto | Training device (`cpu`, `cuda`, `auto`) |
+| `--device` | `TSD_DEVICE` (default `cpu`) | Training device (`cpu`, `cuda`, `auto`) |
+| `--evaluate-test` | False (off) | Run one-shot test evaluation after training |
 | `--config` | None | Path to JSON training configuration file |
-
-Standalone entrypoints are also available:
-- `python -m scripts.train_textcnn`
-- `python -m scripts.train_bilstm`
-- `python -m scripts.train_distilbert`
 
 ---
 
 ## 4. Temperature Calibration (`scripts/calibrate.py`)
 
-Post-training calibration fits temperature scaling parameters $T_{\text{style}}$ and $T_{\text{tone}}$ on validation logits to minimize negative log-likelihood (NLL) and expected calibration error (ECE).
+Post-training calibration fits temperature scaling parameters $T_{\text{style}}$ and $T_{\text{tone}}$ on validation logits via bisection search on inverse temperature $1/T$ to minimize validation negative log-likelihood (NLL).
 
 Modern runs created via `scripts.train` perform calibration automatically upon training completion. For unsealed experiment directories, run:
 
@@ -118,17 +115,39 @@ uv run python -m scripts.calibrate --checkpoint artifacts/experiments/textcnn_01
 
 ## 5. Held-Out Evaluation (`scripts/evaluate.py`)
 
-Evaluate one or more calibrated checkpoints on the held-out test split (`data/prepared/test.csv`):
+Evaluate calibrated checkpoints on the held-out test split (`data/prepared/test.csv`).
+
+Note that `--output` must not exist prior to running evaluation. By default, `--require-all` is active and expects checkpoints for all three architectures (`textcnn`, `bilstm`, `distilbert`). When evaluating a subset of models, pass `--no-require-all`:
 
 ```bash
+# Evaluate all three architectures
+uv run python -m scripts.evaluate \
+  --checkpoints artifacts/experiments/distilbert_01 artifacts/experiments/textcnn_01 artifacts/experiments/bilstm_01 \
+  --output reports/benchmark
+
+# Or evaluate specific models with --no-require-all
 uv run python -m scripts.evaluate \
   --checkpoints artifacts/experiments/distilbert_01 artifacts/experiments/textcnn_01 \
-  --output reports/benchmark
+  --no-require-all \
+  --output reports/benchmark_subset
 ```
 
-### Generated Reports in Output Directory
+### Generated Reports Layout
 
-- `comparison.csv`: Summary table comparing models across accuracy, macro F1, weighted F1, joint accuracy, and ECE.
-- `{model}_classification_report.csv`: Detailed per-class precision, recall, and F1 scores.
-- `{model}_confusion_matrix.csv`: Normalized and raw confusion matrices for style and tone.
-- `predictions.csv`: Row-by-row predicted vs ground truth labels and calibrated probabilities.
+The script generates a comprehensive report directory:
+
+- Root of `--output`:
+  - `comparison.csv`: Summary table comparing models across accuracy, macro F1, weighted F1, joint accuracy, and ECE.
+  - `comparison.json`, `comparison.md`: Machine-readable and formatted summaries.
+  - `recurring_errors.csv`: Analysis of test samples consistently misclassified across models.
+- Per-model subdirectories (`<output>/<model>/`):
+  - `metrics.json`: Detailed numeric metrics for both style and tone tasks.
+  - `predictions.csv`: Row-by-row predicted and true labels with calibrated probabilities.
+  - `errors.csv`, `high_confidence_errors.csv`, `business_formal_errors.csv`: Filtered error slices.
+  - `style_report.csv`, `tone_report.csv`: Per-class precision, recall, and F1 scores.
+  - `style_confusion_counts.csv`, `style_confusion_normalized.csv`, `style_confusion.png`: Confusion matrices.
+  - `tone_confusion_counts.csv`, `tone_confusion_normalized.csv`, `tone_confusion.png`: Confusion matrices.
+  - `confusion_pairs.csv`: Most frequent class confusions sorted by count.
+  - `style_calibration_bins.csv`, `tone_calibration_bins.csv`: Reliability diagram bin data.
+  - `feature_strata.csv`: Performance segmented by text length and linguistic cues.
+  - `error_analysis.md`: Detailed qualitative error report.

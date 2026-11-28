@@ -53,7 +53,7 @@ For Docker, prepare the selected bundle under host `artifacts/`, then run `docke
 
 | Guide | Contents |
 |---|---|
-| [Installation](getting-started/installation.md) | Virtual environment setup, dependencies, CPU PyTorch, Git LFS |
+| [Installation](getting-started/installation.md) | Virtual environment setup, dependencies, CPU PyTorch configuration |
 | [Launch Modes](getting-started/launch-modes.md) | CLI, FastAPI, Streamlit, Docker Compose, and model selection |
 | [Workflows & Experiments](experiments/workflows.md) | Notebooks, dataset preparation, training, calibration, and evaluation |
 | [Model Architectures](modeling/architectures.md) | TextCNN, BiLSTM with attention, DistilBERT, dual heads, temperature scaling |

@@ -94,7 +94,7 @@ uv run streamlit run frontend/app.py --server.port 8501
 Open [http://localhost:8501](http://localhost:8501) in your browser.
 
 Features:
-- Single text analysis with interactive confidence gauges, score distribution charts, and warning alerts.
+- Single text analysis displaying predicted style and tone, calibrated confidence, class score distributions, token usage, and warning alerts.
 - Batch processing via text area input or UTF-8 CSV file upload (must have a `text` column).
 - Export batch predictions as CSV or JSON.
 

@@ -74,5 +74,5 @@ To convert uncalibrated logits into true posterior probabilities, post-hoc tempe
 
 $$\hat{p}_{k} = \frac{\exp(z_k / T)}{\sum_j \exp(z_j / T)}$$
 
-- Temperatures $T_{\text{style}} > 0$ and $T_{\text{tone}} > 0$ are optimized using L-BFGS to minimize negative log-likelihood on the **validation set only**.
+- Temperatures $T_{\text{style}} > 0$ and $T_{\text{tone}} > 0$ are optimized via bisection search on inverse temperature $1/T$ to minimize negative log-likelihood (NLL) on the **validation set only**.
 - Temperature scaling preserves the logit rank order (argmax predictions are unchanged) while correcting overconfidence.

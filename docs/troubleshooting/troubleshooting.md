@@ -42,10 +42,10 @@ This document catalogs common issues encountered during installation, notebook e
 
 ## 3. CPU Execution Considerations
 
-### Latency and Throughput
+### Resource Usage and Batch Limits
 - PyTorch is configured by default with CPU wheels.
-- On modern multi-core CPUs, single-text latency is approximately 5–15 ms for TextCNN/BiLSTM and 30–60 ms for DistilBERT.
 - For batch inference, keep batch sizes between 1 and 64 to avoid memory pressure and latency spikes.
+- By default, PyTorch utilizes available CPU cores for intra-op parallelism.
 
 ### Using GPU Acceleration (Optional)
 If a CUDA-capable GPU is available and you want to use it for training:
@@ -82,20 +82,7 @@ Ensure a CUDA-enabled PyTorch wheel is installed in your virtual environment.
 
 ---
 
-## 5. Git LFS Pointer Files
-
-### Problem: `torch.load` fails with `_pickle.UnpicklingError` or file size is only ~130 bytes
-- **Cause:** The repository was cloned without Git LFS, so binary weight files (`best.pt`, `.joblib`) are plain text pointers.
-- **Solution:**
-  ```bash
-  git lfs install
-  git lfs pull
-  ```
-  Verify that `best.pt` file sizes are several megabytes (or ~260 MB for DistilBERT), not 130 bytes.
-
----
-
-## 6. Windows-Specific Quirks
+## 5. Windows-Specific Quirks
 
 ### Problem: `UnicodeDecodeError: 'charmap' codec can't decode byte ...`
 - **Cause:** On Windows, Python functions like `open()` and `pd.read_csv()` historically default to the system locale encoding (such as `cp1252` or `windows-1251`) instead of UTF-8 when `encoding` is omitted.
@@ -112,9 +99,9 @@ Ensure a CUDA-enabled PyTorch wheel is installed in your virtual environment.
 
 ---
 
-## 7. Model and Scope Limitations
+## 6. Model and Scope Limitations
 
-- **Balanced Synthetic Corpus:** The dataset is intentionally balanced (5 styles x 5 tones). In real-world data, class distributions, message lengths, and domain vocabularies may differ significantly.
+- **Corpus Scale and Balance:** The dataset is a curated, balanced corpus of 1000 messages (200 per style, 200 per tone). In production scenarios, real-world class distributions, message lengths, and vocabularies may differ.
 - **English Language Constraint:** The models are trained strictly on English texts. The `unfamiliar_input` warning checks for non-Latin character ratios and out-of-vocabulary tokens, which is an operational heuristic rather than a full language identification tool.
 - **Context Absence:** Classification evaluates each submitted message in isolation. Sarcasm, communicative intent, quotations, and colloquial brevity often depend on external dialogue or situational context unavailable to the model.
 - **Class Boundary Overlap:** Certain writing styles (particularly `business` and `formal`) naturally exhibit structural and linguistic overlap. The model learns boundaries defined by the dataset annotations.

@@ -1,6 +1,6 @@
 # Installation and Environment Setup
 
-This guide covers setting up the development and execution environment for the Text Style & Tone Detection project, including dependencies, CPU PyTorch configuration, Git LFS downloads, and environment verification.
+This guide covers setting up the development and execution environment for the Text Style & Tone Detection project, including dependencies, CPU PyTorch configuration, and environment verification.
 
 ---
 
@@ -84,7 +84,7 @@ source .venv/bin/activate
 Install packages matching `pyproject.toml`:
 ```bash
 # Core API & CPU PyTorch
-pip install --extra-index-url https://download.pytorch.org/whl/cpu torch>=2.6
+pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.6"
 pip install fastapi>=0.136.3 uvicorn>=0.48.0 joblib>=1.5.3 numpy>=2.0 pandas>=3.0.3 scikit-learn>=1.5.0 spacy>=3.8.13 transformers>=4.46
 pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 
@@ -113,37 +113,7 @@ On macOS, official PyPI PyTorch wheels natively support both CPU and Metal (MPS)
 
 ---
 
-## 5. Git LFS (Large File Storage) Downloads
-
-Binary model checkpoints (such as `best.pt`), embeddings, or serialized artifacts in Git repositories are managed through **Git LFS**.
-
-### Installing Git LFS
-
-1. Install the Git LFS CLI:
-   - **Windows:** Download from [git-lfs.com](https://git-lfs.com/) or via `winget install GitHub.GitLFS`
-   - **Ubuntu/Debian:** `sudo apt-get install git-lfs`
-   - **macOS:** `brew install git-lfs`
-2. Initialize Git LFS hooks:
-   ```bash
-   git lfs install
-   ```
-
-### Pulling Large Files
-
-If cloned without Git LFS or if checkpoint files contain only small text pointers (starting with `version https://git-lfs.github.com/spec/v1`), fetch the actual binary payloads:
-
-```bash
-git lfs pull
-```
-
-Check the status of LFS files:
-```bash
-git lfs ls-files
-```
-
----
-
-## 6. Verifying the Environment
+## 5. Verifying the Environment
 
 Run the following checks from the repository root to verify your installation:
 

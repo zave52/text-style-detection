@@ -73,7 +73,7 @@ Each `.txt` file contains a single text sample written in a specific style–ton
 The script `scripts/build_dataset.py` compiles all raw text files into a single CSV:
 
 ```
-data/dataset.csv
+data/raw/dataset.csv
 ```
 
 | Column | Type | Description |
@@ -148,7 +148,7 @@ uv run python -m scripts.build_dataset
 The script:
 
 1. Iterates over all `dataset/{style}/{tone}/*.txt` files.
-2. Compiles the raw corpus to `data/dataset.csv`.
+2. Compiles the raw corpus to `data/raw/dataset.csv`.
 3. Detects and audits label conflicts, removing 2 contradictory entries.
 4. Identifies near-duplicate groups.
 5. Generates reproducible splits in `data/prepared/` (`train.csv`, `validation.csv`, `test.csv`, and `manifest.json`).
