@@ -42,10 +42,16 @@ theme:
 
 nav:
   - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Launch Modes: getting-started/launch-modes.md
   - Dataset:
       - Overview: dataset/overview.md
       - Preprocessing: dataset/preprocessing.md
+  - Experiments & Workflows:
+      - Notebooks & Training: experiments/workflows.md
   - Modeling:
+      - Model Architectures: modeling/architectures.md
       - TF-IDF + LinearSVC: modeling/tfidf-linearsvc.md
       - Embeddings + MultiOutput: modeling/embeddings-multioutput.md
       - Results Comparison: modeling/results.md
@@ -55,6 +61,8 @@ nav:
       - Prediction Service: application/prediction-service.md
       - API Reference: application/api.md
       - Deployment: application/deployment.md
+  - Troubleshooting:
+      - Limitations & Common Issues: troubleshooting/troubleshooting.md
 
 markdown_extensions:
   - admonition

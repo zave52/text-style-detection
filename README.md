@@ -158,6 +158,6 @@ uv run pytest -q
 uv run --group docs mkdocs build --strict
 ```
 
-The [architecture guide](docs/application/architecture.md) describes service boundaries and model loading. [Classical vs neural](docs/modeling/legacy-vs-neural.md) reports historical accuracy and F1 with split and averaging caveats; those results are not a benchmark of whichever bundle is currently selected.
+The documentation suite covers [installation and environment setup](docs/getting-started/installation.md), [launch modes and model selection](docs/getting-started/launch-modes.md), [experiments and training workflows](docs/experiments/workflows.md), [neural architectures](docs/modeling/architectures.md), [prediction service](docs/application/prediction-service.md), [API reference](docs/application/api.md), [application architecture](docs/application/architecture.md), [deployment](docs/application/deployment.md), [classical vs neural comparisons](docs/modeling/legacy-vs-neural.md), and [troubleshooting](docs/troubleshooting/troubleshooting.md).
 
 Documentation is configured in `mkdocs.yml` and published at [zave52.github.io/text-style-detection](https://zave52.github.io/text-style-detection/).

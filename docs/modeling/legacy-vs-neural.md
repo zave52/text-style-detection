@@ -34,6 +34,16 @@ Neural context is limited by tokenization and truncation. In the published DL ex
 
 The architectural distinction is between jointly learning a representation and supplying the same fixed features to two independent classifiers.
 
+### Conceptual Comparison: Classical ML vs Deep Learning
+
+| Aspect | Classical ML in Original Repository | Deep Learning in Current System |
+|---|---|---|
+| Text representation | TF-IDF calculates word and n-gram frequencies; spaCy averages static vectors | Encoder learns task-specific representations during optimization; DistilBERT initializes from pretrained transformer weights |
+| Word order and context | N-grams capture local order within a sliding window; vector averaging discards order completely | CNN extracts local n-gram filters, BiLSTM reads bidirectionally with attention, DistilBERT uses self-attention across full sequences |
+| Task dependency | Separate, unlinked models for style and tone | Hard parameter sharing: one shared sentence representation with dual classification heads |
+| Sample efficiency | TF-IDF + LinearSVC performs well even on small datasets (~1000 samples) | Training from scratch requires careful regularization; transfer learning (DistilBERT) leverages pretrained language priors |
+| Computational requirements | Extremely fast CPU training and sub-millisecond inference | Computationally heavier training; inference remains CPU-friendly (5-60 ms) |
+
 ## 3. Reported Classical Model Results
 
 Accuracy is shown as a percentage, and F1 uses the `0–1` scale. The LinearSVC notebook prints test accuracy to only two decimal places on the `0–1` scale.

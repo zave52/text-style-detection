@@ -73,7 +73,7 @@ Each `.txt` file contains a single text sample written in a specific style–ton
 The script `scripts/build_dataset.py` compiles all raw text files into a single CSV:
 
 ```
-data/dataset.csv
+data/raw/dataset.csv
 ```
 
 | Column | Type | Description |
@@ -121,22 +121,35 @@ The dataset is **perfectly balanced**: every style has exactly 200 samples, and 
 
 ---
 
-## Building the Dataset
+## Audited Dataset and Reproducible Splits
 
-To regenerate `data/dataset.csv` from the raw text files:
+While the raw corpus has 1000 messages, rigorous corpus auditing removes 2 contradictory records where identical text was annotated with conflicting labels. The resulting clean dataset contains **998 samples**.
+
+To prevent data leakage between training, validation, and test partitions, near-duplicate texts are grouped together. A group-aware stratified split produces three canonical partitions in `data/prepared/`:
+
+| Split | Rows | Purpose |
+|---|---|---|
+| **Train** | 632 | Model training and vocabulary learning |
+| **Validation** | 158 | Checkpoint selection, early stopping, and temperature calibration |
+| **Test** | 208 | Held-out final model evaluation and benchmarking |
+
+All neural experiments use these frozen splits as documented in `data/prepared/manifest.json`.
+
+---
+
+## Building and Auditing the Dataset
+
+To compile raw texts, perform the audit, and generate the prepared splits:
 
 ```bash
-cd scripts
-python build_dataset.py
+uv run python -m scripts.build_dataset
 ```
 
 The script:
 
-1. Iterates over all `dataset/{style}/{tone}/*.txt` files
-2. Reads and preprocesses each text (see [Preprocessing](preprocessing.md))
-3. Compiles everything into a DataFrame
-4. Shuffles with `random_state=42`
-5. Saves to `data/dataset.csv`
-
-!!! note "Reproducibility"
-    The shuffle uses a fixed random seed (`random_state=42`), so re-running the script produces an identical CSV.
+1. Iterates over all `dataset/{style}/{tone}/*.txt` files.
+2. Compiles the raw corpus to `data/raw/dataset.csv`.
+3. Detects and audits label conflicts, removing 2 contradictory entries.
+4. Identifies near-duplicate groups.
+5. Generates reproducible splits in `data/prepared/` (`train.csv`, `validation.csv`, `test.csv`, and `manifest.json`).
+6. Generates audit reports in `reports/` (`corpus_audit.md`, `data_splits.md`).
